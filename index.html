@@ -504,9 +504,9 @@
                 <!-- SHARED RESULT BOX FOR BOTH PHOTO & STORY -->
                 <div id="meal-analysis-result" class="hidden bg-dark-950 rounded-2xl p-4 border border-emerald-500/40 space-y-3">
                     <div class="flex flex-wrap items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
-                        <div>
-                            <span class="text-[10px] uppercase tracking-wider font-extrabold text-emerald-400 block">Kết quả phân tích dinh dưỡng</span>
-                            <h4 class="font-extrabold text-base text-white" id="res-meal-name">Bữa ăn đã phân tích</h4>
+                        <div class="flex-1 min-w-[180px]">
+                            <span class="text-[10px] uppercase tracking-wider font-extrabold text-emerald-400 block">Kết quả phân tích dinh dưỡng (Có thể sửa số)</span>
+                            <input type="text" id="res-meal-name-input" class="w-full bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1 text-sm font-extrabold text-white mt-1 focus:outline-none focus:border-emerald-500" value="Bữa ăn đã phân tích">
                         </div>
                         <div class="text-right">
                             <span class="text-lg font-black text-orange-400 block leading-none" id="res-total-kcal">0 kcal</span>
@@ -514,8 +514,31 @@
                         </div>
                     </div>
 
-                    <!-- Detected Items Breakdown -->
-                    <div id="res-items-list" class="space-y-1.5 text-xs"></div>
+                    <!-- Editable Macro Summary Inputs -->
+                    <div class="grid grid-cols-4 gap-2 bg-dark-900/90 p-2.5 rounded-xl border border-slate-800">
+                        <div>
+                            <label class="block text-[10px] font-bold text-orange-400 mb-1">Calo (kcal)</label>
+                            <input type="number" id="edit-res-kcal" oninput="syncEditedMealTotals()" class="w-full bg-dark-950 border border-slate-700 rounded-lg px-2 py-1 text-xs font-extrabold text-white focus:outline-none focus:border-orange-400">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-sky-400 mb-1">Đạm (g)</label>
+                            <input type="number" id="edit-res-protein" oninput="syncEditedMealTotals()" class="w-full bg-dark-950 border border-slate-700 rounded-lg px-2 py-1 text-xs font-extrabold text-white focus:outline-none focus:border-sky-400">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-emerald-400 mb-1">Carb (g)</label>
+                            <input type="number" id="edit-res-carbs" oninput="syncEditedMealTotals()" class="w-full bg-dark-950 border border-slate-700 rounded-lg px-2 py-1 text-xs font-extrabold text-white focus:outline-none focus:border-emerald-400">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-amber-400 mb-1">Fat (g)</label>
+                            <input type="number" id="edit-res-fat" oninput="syncEditedMealTotals()" class="w-full bg-dark-950 border border-slate-700 rounded-lg px-2 py-1 text-xs font-extrabold text-white focus:outline-none focus:border-amber-400">
+                        </div>
+                    </div>
+
+                    <!-- Detected Items Breakdown (Editable per item) -->
+                    <div class="space-y-1.5">
+                        <span class="text-[11px] text-slate-400 font-medium block">Chi tiết từng món (Bấm vào ô số để chỉnh sửa trực tiếp):</span>
+                        <div id="res-items-list" class="space-y-1.5 text-xs"></div>
+                    </div>
 
                     <!-- Fat-Loss Advice -->
                     <div class="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-2.5 text-xs text-emerald-200">
@@ -523,7 +546,7 @@
                     </div>
 
                     <div class="flex flex-col sm:flex-row gap-2">
-                        <button onclick="confirmAddAnalyzedMeal(true)" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-dark-950 font-extrabold py-2.5 px-4 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20">
+                        <button onclick="confirmAddAnalyzedMeal()" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-dark-950 font-extrabold py-2.5 px-4 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20">
                             <i class="fa-solid fa-circle-check"></i> ✅ Cộng vào Calo hôm nay
                         </button>
                         <button onclick="document.getElementById('meal-analysis-result').classList.add('hidden')" class="sm:w-auto bg-dark-800 hover:bg-dark-700 text-slate-300 font-semibold py-2.5 px-4 rounded-xl text-xs border border-slate-700 transition-all">
@@ -845,494 +868,12 @@
         // ==========================================
         const STORAGE_KEY = 'fithome_ai_offline_v3';
         const API_KEY_STORAGE = 'fithome_gemini_api_key';
-        const GEMINI_MODEL = 'gemini-3.8-flash';
-
-        const defaultState = {
-            profile: {
-                gender: 'male',
-                age: 24,
-                height: 164,
-                weight: 71.0,
-                goalWeight: 66.0,
-                activity: 1.55,
-                deficit: 450
-            },
-            equipment: {
-                mat: true,
-                dumbbell: true, // Tạ đơn 15kg (2 bánh 5kg + 2 bánh 2.5kg)
-                pullup: true
-            },
-            workoutConfig: {
-                duration: 30,
-                intensity: 'standard'
-            },
-            dietMode: 'home', // 'home' | 'away'
-            currentWorkout: [],
-            pantry: [
-                'Cơm trắng', 'Khoai lang', 'Trứng gà', 'Ức gà', 
-                'Thịt lợn nạc', 'Đậu phụ', 'Rau muống', 'Cải xanh', 
-                'Chuối', 'Sữa tươi không đường'
-            ],
-            suggestedMeals: [],
-            todayLog: {
-                date: new Date().toISOString().split('T')[0],
-                workoutBurnedKcal: 0,
-                activityBurnedKcal: 0,
-                steps: 0,
-                floors: 0,
-                foods: []
-            },
-            weightHistory: [
-                { date: 'Bắt đầu', weight: 71.0 }
-            ]
-        };
-
-        let appState = loadState();
-
-        function loadState() {
-            try {
-                const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('fithome_ai_offline_v2');
-                if (raw) {
-                    const parsed = JSON.parse(raw);
-                    const today = new Date().toISOString().split('T')[0];
-                    if (parsed.todayLog && parsed.todayLog.date !== today) {
-                        parsed.todayLog = {
-                            date: today,
-                            workoutBurnedKcal: 0,
-                            activityBurnedKcal: 0,
-                            steps: 0,
-                            floors: 0,
-                            foods: []
-                        };
-                    } else if (parsed.todayLog && parsed.todayLog.burnedKcal !== undefined && parsed.todayLog.workoutBurnedKcal === undefined) {
-                        parsed.todayLog.workoutBurnedKcal = parsed.todayLog.burnedKcal || 0;
-                        parsed.todayLog.activityBurnedKcal = 0;
-                        parsed.todayLog.steps = 0;
-                        parsed.todayLog.floors = 0;
-                    }
-                    return {
-                        ...defaultState,
-                        ...parsed,
-                        profile: { ...defaultState.profile, ...(parsed.profile || {}) },
-                        equipment: { ...defaultState.equipment, ...(parsed.equipment || {}) },
-                        workoutConfig: { ...defaultState.workoutConfig, ...(parsed.workoutConfig || {}) }
-                    };
-                }
-            } catch (e) {
-                console.error('Lỗi đọc localStorage:', e);
-            }
-            return JSON.parse(JSON.stringify(defaultState));
-        }
-
-        function saveState() {
-            try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
-            } catch (e) {
-                console.error('Lỗi lưu localStorage:', e);
-            }
-        }
-
-        // ==========================================
-        // 2. AUDIO BEEP GENERATOR (WEB AUDIO API)
-        // ==========================================
-        let audioCtx = null;
-        function playBeep(freq = 880, duration = 0.2, type = 'sine') {
-            try {
-                if (!audioCtx) {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                }
-                if (audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = type;
-                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.32, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start();
-                osc.stop(audioCtx.currentTime + duration);
-            } catch (e) {}
-        }
-
-        // ==========================================
-        // 3. TOAST NOTIFICATIONS
-        // ==========================================
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            const styles = type === 'success'
-                ? 'bg-emerald-950/95 border-emerald-500/60 text-emerald-100'
-                : type === 'warning'
-                ? 'bg-amber-950/95 border-amber-500/60 text-amber-100'
-                : 'bg-slate-900/95 border-slate-700 text-white';
-
-            const icon = type === 'success' ? 'fa-circle-check text-emerald-400' : 'fa-circle-info text-amber-400';
-
-            toast.className = `pointer-events-auto border ${styles} px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md flex items-center gap-3 text-xs font-medium transition-all duration-300`;
-            toast.innerHTML = `<i class="fa-solid ${icon} text-base shrink-0"></i><span>${message}</span>`;
-
-            container.appendChild(toast);
-            setTimeout(() => {
-                toast.classList.add('opacity-0', '-translate-y-2');
-                setTimeout(() => toast.remove(), 300);
-            }, 3400);
-        }
-
-        // ==========================================
-        // 4. METABOLISM, ACTIVITY & DASHBOARD
-        // ==========================================
-        function calculateMetrics() {
-            const { gender, age, height, weight, goalWeight, activity, deficit } = appState.profile;
-            let bmr = (10 * weight) + (6.25 * height) - (5 * age) + (gender === 'male' ? 5 : -161);
-            bmr = Math.round(bmr);
-            const tdee = Math.round(bmr * activity);
-
-            const defVal = parseInt(deficit) || 450;
-            const targetCalories = weight > goalWeight ? Math.max(1600, tdee - defVal) : tdee;
-
-            const proteinGrams = Math.round(weight * 2.0);
-            const fatGrams = Math.round((targetCalories * 0.27) / 9);
-            const carbGrams = Math.round((targetCalories - (proteinGrams * 4) - (fatGrams * 9)) / 4);
-
-            const heightM = height / 100;
-            const bmi = (weight / (heightM * heightM)).toFixed(1);
-            let bmiLabel = 'Bình thường';
-            if (bmi >= 25) bmiLabel = 'Thừa cân nhẹ';
-            else if (bmi >= 23) bmiLabel = 'Tiền thừa cân';
-            else if (bmi < 18.5) bmiLabel = 'Thiếu cân';
-
-            return { bmr, tdee, targetCalories, proteinGrams, carbGrams, fatGrams, bmi, bmiLabel };
-        }
-
-        function calculateActivityCalories(steps, floors) {
-            const weightFactor = (appState.profile.weight || 71) / 70;
-            const stepKcal = (steps || 0) * 0.04 * weightFactor;
-            const floorKcal = (floors || 0) * 6.5 * weightFactor;
-            return Math.round(stepKcal + floorKcal);
-        }
-
-        function processUrlActivitySync() {
-            try {
-                const params = new URLSearchParams(window.location.search);
-                if (params.has('steps') || params.has('floors')) {
-                    const steps = Math.max(0, parseInt(params.get('steps')) || 0);
-                    const floors = Math.max(0, parseInt(params.get('floors')) || 0);
-                    const kcal = calculateActivityCalories(steps, floors);
-
-                    appState.todayLog.steps = steps;
-                    appState.todayLog.floors = floors;
-                    appState.todayLog.activityBurnedKcal = kcal;
-                    saveState();
-
-                    // Clean URL query params to prevent stale reload overwrite
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                    showToast(`Đã đồng bộ từ iPhone Health: ${steps.toLocaleString()} bước & ${floors} tầng (+${kcal} kcal)!`);
-                }
-            } catch (e) {}
-        }
-
-        function saveDailyActivityManual() {
-            const steps = Math.max(0, parseInt(document.getElementById('input-steps-today').value) || 0);
-            const floors = Math.max(0, parseInt(document.getElementById('input-floors-today').value) || 0);
-            const kcal = calculateActivityCalories(steps, floors);
-
-            appState.todayLog.steps = steps;
-            appState.todayLog.floors = floors;
-            appState.todayLog.activityBurnedKcal = kcal;
-            saveState();
-            updateDashboardUI();
-            playBeep(660, 0.15);
-            showToast(`Đã cập nhật vận động: ${steps.toLocaleString()} bước, ${floors} tầng (+${kcal} kcal)!`);
-        }
-
-        function toggleShortcutGuideModal() {
-            document.getElementById('shortcut-guide-box').classList.toggle('hidden');
-        }
-
-        function updateDashboardUI() {
-            const m = calculateMetrics();
-            const foodTotal = appState.todayLog.foods.reduce((sum, item) => sum + (item.kcal || 0), 0);
-            const proteinTotal = appState.todayLog.foods.reduce((sum, item) => sum + (item.protein || 0), 0);
-            const burnedTotal = (appState.todayLog.workoutBurnedKcal || 0) + (appState.todayLog.activityBurnedKcal || 0);
-            const remaining = m.targetCalories - foodTotal + burnedTotal;
-
-            // Activity card sync
-            document.getElementById('input-steps-today').value = appState.todayLog.steps || '';
-            document.getElementById('input-floors-today').value = appState.todayLog.floors || '';
-            document.getElementById('activity-burned-kcal').innerText = `${appState.todayLog.activityBurnedKcal || 0} kcal`;
-
-            // Header
-            const diffKg = Math.max(0, appState.profile.weight - appState.profile.goalWeight).toFixed(1);
-            document.getElementById('header-user-goal').innerText = `Mục tiêu: ${appState.profile.weight.toFixed(1)}kg → ${appState.profile.goalWeight.toFixed(1)}kg (-${diffKg}kg)`;
-            document.getElementById('dash-target-cal').innerText = m.targetCalories.toLocaleString();
-            document.getElementById('dash-food-cal').innerText = foodTotal.toLocaleString();
-            document.getElementById('dash-burned-cal').innerText = burnedTotal.toLocaleString();
-            document.getElementById('dash-protein-progress').innerText = `${proteinTotal} / ${m.proteinGrams}g`;
-
-            const remEl = document.getElementById('dash-remaining-cal');
-            remEl.innerText = `${remaining.toLocaleString()} kcal`;
-            remEl.className = remaining >= 0 ? 'font-extrabold text-sm sm:text-base text-emerald-400' : 'font-extrabold text-sm sm:text-base text-rose-400';
-
-            // Diet Tab
-            document.getElementById('diet-target-cal-badge').innerText = `${m.targetCalories.toLocaleString()} kcal`;
-            document.getElementById('macro-p-target').innerText = `${m.proteinGrams}g`;
-            document.getElementById('macro-c-target').innerText = `${m.carbGrams}g`;
-            document.getElementById('macro-f-target').innerText = `${m.fatGrams}g`;
-            document.getElementById('macro-p-eaten').innerText = `${proteinTotal}g`;
-            document.getElementById('macro-p-bar').style.width = `${Math.min(100, Math.round((proteinTotal / m.proteinGrams) * 100))}%`;
-
-            // Food Log Bar
-            document.getElementById('log-eaten-kcal').innerText = foodTotal;
-            document.getElementById('log-goal-kcal').innerText = m.targetCalories;
-            const pct = Math.min(100, Math.round((foodTotal / m.targetCalories) * 100));
-            document.getElementById('log-percent').innerText = `${pct}%`;
-            document.getElementById('log-progress-bar').style.width = `${pct}%`;
-
-            // Profile Tab
-            document.getElementById('calc-bmi').innerText = `${m.bmi} (${m.bmiLabel})`;
-            document.getElementById('calc-bmr').innerText = `${m.bmr.toLocaleString()} kcal`;
-            document.getElementById('calc-tdee').innerText = `${m.tdee.toLocaleString()} kcal`;
-            document.getElementById('stat-curr-weight').innerText = `${appState.profile.weight.toFixed(1)} kg`;
-            document.getElementById('stat-goal-weight').innerText = `${appState.profile.goalWeight.toFixed(1)} kg`;
-            document.getElementById('stat-diff-weight').innerText = `${diffKg} kg`;
-        }
-
-        // ==========================================
-        // 5. NAVIGATION TABS
-        // ==========================================
-        function switchTab(tabName) {
-            ['workout', 'diet', 'progress'].forEach(t => {
-                document.getElementById(`tab-${t}`).classList.add('hidden');
-                document.getElementById(`nav-desk-${t}`).className = 'px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all';
-                document.getElementById(`nav-mob-${t}`).className = 'flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400';
-            });
-
-            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-            document.getElementById(`nav-desk-${tabName}`).className = 'px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950';
-            document.getElementById(`nav-mob-${tabName}`).className = 'flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10';
-
-            if (tabName === 'progress') {
-                renderWeightChart();
-            }
-        }
-
-        // ==========================================
-        // 6. RICH OFFLINE EXERCISE DATABASE
-        // ==========================================
-        const EXERCISE_LIBRARY = [
-            // --- 1. WARMUP ---
-            {
-                id: 'wu1', category: 'warmup', name: 'Jumping Jacks & Xoay khớp toàn thân',
-                equip: ['none'], reps: '45 giây', workSec: 45, restSec: 15,
-                setup: 'Tay không (Không cần dụng cụ)',
-                muscle: 'Toàn thân & Tim mạch',
-                tip: 'Bật nhảy nhẹ trên mũi chân, vung hai tay chạm nhau qua đầu. Xoay kỹ khớp cổ tay, vai và hông trước khi vào bài tạ.'
-            },
-            {
-                id: 'wu2', category: 'warmup', name: 'Inchworm (Sâu đo giãn cơ động)',
-                equip: ['none'], reps: '8 - 10 lần', workSec: 45, restSec: 15,
-                setup: 'Tay không / Trên sàn',
-                muscle: 'Gân kheo, Vai, Cơ lõi',
-                tip: 'Đứng thẳng, gập người chạm tay xuống sàn, bò tay ra trước thành tư thế Plank rồi bò ngược về đứng thẳng.'
-            },
-            {
-                id: 'wu3', category: 'warmup', name: 'High Knees tại chỗ (Nâng cao đùi làm nóng)',
-                equip: ['none'], reps: '40 giây', workSec: 40, restSec: 20,
-                setup: 'Tay không',
-                muscle: 'Tim mạch, Đùi trước, Bắp chân',
-                tip: 'Chạy nâng cao đùi ngang hông nhịp độ vừa phải, đánh tay dứt khoát để đẩy nhịp tim lên vùng đốt mỡ.'
-            },
-            {
-                id: 'wu4', category: 'warmup', name: 'World Greatest Stretch (Giãn cơ xoay lồng ngực)',
-                equip: ['mat'], reps: '6 lần mỗi bên', workSec: 50, restSec: 15,
-                setup: 'Trên thảm tập',
-                muscle: 'Khớp háng, Lưng trên, Vai',
-                tip: 'Bước chân phải lên trước trường tấn, chống tay trái xuống thảm và vươn tay phải xoay mở ngực lên trần.'
-            },
-
-            // --- 2. UPPER BODY ---
-            {
-                id: 'up1', category: 'upper', name: 'Pull-up / Chin-up (Kéo xà đơn chuẩn)',
-                equip: ['pullup'], reps: '6 - 10 lần', workSec: 45, restSec: 30,
-                setup: 'Xà đơn (Trọng lượng cơ thể)',
-                muscle: 'Xô, Lưng trên, Tay trước',
-                tip: 'Nắm xà rộng hơn vai, ưỡn ngực lên thanh xà. Nếu mệt, bật nhảy lên và hạ người xuống thật chậm trong 4-5 giây.'
-            },
-            {
-                id: 'up2', category: 'upper', name: 'Single-Arm Dumbbell Row (Kéo tạ 1 tay lưng xô)',
-                equip: ['dumbbell'], reps: '12 lần mỗi tay', workSec: 50, restSec: 25,
-                setup: 'Tạ đơn 12.5kg (Lắp 2 bánh 5kg + 1 bánh 2.5kg) hoặc 15kg',
-                muscle: 'Lưng giữa, Xô, Tay trước',
-                tip: 'Một tay chống lên ghế/đầu gối, lưng giữ thẳng song song sàn, kéo tạ sát về phía hông rồi hạ chậm có kiểm soát.'
-            },
-            {
-                id: 'up3', category: 'upper', name: 'Dumbbell Floor Press (Đẩy ngực nằm thảm)',
-                equip: ['dumbbell', 'mat'], reps: '12 - 15 lần mỗi tay', workSec: 50, restSec: 25,
-                setup: 'Tạ đơn 12.5kg hoặc 15kg (Full 2 bánh 5kg + 2 bánh 2.5kg)',
-                muscle: 'Ngực, Vai trước, Tay sau',
-                tip: 'Nằm ngửa trên thảm, co gối. Hạ khuỷu tay mở góc 45 độ chạm nhẹ xuống thảm rồi đẩy mạnh tạ lên trần.'
-            },
-            {
-                id: 'up4', category: 'upper', name: 'Dumbbell Push Press (Đẩy tạ qua đầu kết hợp nhún chân)',
-                equip: ['dumbbell'], reps: '10 - 12 lần mỗi tay', workSec: 45, restSec: 25,
-                setup: 'Tạ đơn 7.5kg (1 bánh 5kg + 1 bánh 2.5kg) hoặc 10kg',
-                muscle: 'Vai, Tay sau, Toàn thân đốt calo',
-                tip: 'Giữ tạ ngang vai, hơi nhún nhẹ gối rồi bật hông đẩy thẳng tạ qua đầu. Bài đa khớp giúp tiêu hao nhiều năng lượng.'
-            },
-            {
-                id: 'up5', category: 'upper', name: 'Renegade Row + Push-up (Chống đẩy kéo tạ)',
-                equip: ['dumbbell', 'mat'], reps: '10 lần', workSec: 50, restSec: 30,
-                setup: 'Tạ đơn 7.5kg (1 bánh 5kg + 1 bánh 2.5kg)',
-                muscle: 'Ngực, Lưng, Bụng Core',
-                tip: 'Vào tư thế chống đẩy, thực hiện 1 nhịp hít đất rồi lần lượt kéo tạ sát hông từng bên, gồng chặt bụng không xoay hông.'
-            },
-            {
-                id: 'up6', category: 'upper', name: 'Australian Pull-up / Kéo xà thấp giữ tĩnh',
-                equip: ['pullup'], reps: '8 - 12 lần', workSec: 45, restSec: 25,
-                setup: 'Xà đơn (Nắm ngửa tay hoặc nắm sấp)',
-                muscle: 'Lưng trên, Tay trước, Cẳng tay',
-                tip: 'Kéo cằm vượt qua xà và giữ tĩnh 2 giây ở điểm cao nhất để tối đa hóa áp lực lên cơ lưng.'
-            },
-            {
-                id: 'up7', category: 'upper', name: 'Push-up Biến thể (Chống đẩy chuẩn & Kim cương)',
-                equip: ['none'], reps: '12 - 18 lần', workSec: 45, restSec: 25,
-                setup: 'Tay không (100% Bodyweight)',
-                muscle: 'Ngực, Vai trước, Tay sau',
-                tip: 'Siết chặt cơ bụng và mông thành đường thẳng, hạ ngực cách sàn 2cm trong 2 giây rồi đẩy bùng nổ lên.'
-            },
-            {
-                id: 'up8', category: 'upper', name: 'Pike Push-up (Chống đẩy chữ V ngược tập vai)',
-                equip: ['none'], reps: '10 - 14 lần', workSec: 45, restSec: 25,
-                setup: 'Tay không (100% Bodyweight)',
-                muscle: 'Cơ vai, Tay sau, Ngực trên',
-                tip: 'Đẩy hông lên cao tạo hình chữ V ngược, gập khuỷu tay hạ đỉnh đầu hướng về phía trước hai bàn tay rồi đẩy lên.'
-            },
-            {
-                id: 'up9', category: 'upper', name: 'Hindu Push-up (Chống đẩy lướt sóng toàn thân)',
-                equip: ['none'], reps: '10 - 12 lần', workSec: 45, restSec: 25,
-                setup: 'Tay không (100% Bodyweight)',
-                muscle: 'Vai, Ngực, Lưng, Cột sống',
-                tip: 'Từ tư thế chữ V ngược, lướt ngực sát sàn tiến về phía trước rồi ưỡn ngực lên như rắn hổ mang, sau đó đẩy hông về lại.'
-            },
-
-            // --- 3. LOWER BODY ---
-            {
-                id: 'lo1', category: 'lower', name: 'Dumbbell Goblet Squat (Squat ôm tạ trước ngực)',
-                equip: ['dumbbell'], reps: '15 lần', workSec: 50, restSec: 25,
-                setup: 'Tạ đơn 12.5kg hoặc 15kg (Lắp full 2 bánh 5kg + 2 bánh 2.5kg)',
-                muscle: 'Đùi trước, Mông, Core (Đốt mỡ cực cao)',
-                tip: 'Hai tay ôm dọc đầu tạ sát ngực, giữ lưng thẳng, hạ hông sâu qua đầu gối rồi đạp mạnh gót chân đứng lên.'
-            },
-            {
-                id: 'lo2', category: 'lower', name: 'Dumbbell Thruster (Squat bật đẩy tạ qua đầu)',
-                equip: ['dumbbell'], reps: '12 - 15 lần', workSec: 45, restSec: 25,
-                setup: 'Tạ đơn 10kg (Lắp 2 bánh 5kg)',
-                muscle: 'Đùi, Mông, Vai, Tim mạch HIIT',
-                tip: 'Ôm tạ ngang vai, ngồi xổm sâu xuống rồi dùng lực bật hông đẩy thẳng tạ qua đầu. Bài tập đốt calo hàng đầu!'
-            },
-            {
-                id: 'lo3', category: 'lower', name: 'Dumbbell Romanian Deadlift (Kéo tạ đùi sau)',
-                equip: ['dumbbell'], reps: '15 lần', workSec: 50, restSec: 25,
-                setup: 'Tạ đơn 15kg (Lắp full tạ: 2 bánh 5kg + 2 bánh 2.5kg)',
-                muscle: 'Đùi sau, Mông, Lưng dưới',
-                tip: 'Hai tay giữ hai đầu tạ trước đùi, hơi chùng nhẹ gối, đẩy hông ra sau hết cỡ hạ tạ dọc ống chân rồi siết mông đứng lên.'
-            },
-            {
-                id: 'lo4', category: 'lower', name: 'Dumbbell Reverse Lunges (Chùng chân lùi ôm tạ)',
-                equip: ['dumbbell'], reps: '10 lần mỗi chân', workSec: 50, restSec: 25,
-                setup: 'Tạ đơn 10kg (Lắp 2 bánh 5kg)',
-                muscle: 'Đùi trước, Mông, Thăng bằng',
-                tip: 'Ôm tạ trước ngực, bước dài 1 chân ra sau hạ gối sau cách sàn 2cm, đạp gót chân trước đứng thẳng dậy.'
-            },
-            {
-                id: 'lo5', category: 'lower', name: 'Dumbbell Swing (Vung tạ 2 tay kiểu Kettlebell)',
-                equip: ['dumbbell'], reps: '45 giây liên tục', workSec: 45, restSec: 20,
-                setup: 'Tạ đơn 10kg (2 bánh 5kg) hoặc 12.5kg',
-                muscle: 'Mông, Đùi sau, Tim mạch đốt mỡ',
-                tip: 'Hai tay đan giữ chặt đầu tạ, dùng lực bật hông vung tạ lên ngang vai. Lưu ý dùng lực hông chứ không dùng tay nhấc.'
-            },
-            {
-                id: 'lo6', category: 'lower', name: 'Jump Squat (Squat bật nhảy đốt mỡ)',
-                equip: ['none'], reps: '15 - 20 lần', workSec: 40, restSec: 25,
-                setup: 'Tay không (100% Bodyweight)',
-                muscle: 'Đùi, Mông, Bắp chân, Tim mạch',
-                tip: 'Hạ người Squat xuống đùi song song sàn rồi bật nhảy cao hết cỡ, tiếp đất êm bằng mũi chân và hạ ngay xuống nhịp tiếp theo.'
-            },
-            {
-                id: 'lo7', category: 'lower', name: 'Alternating Lunges + Squat Pulse (Chùng chân kết hợp nhấp)',
-                equip: ['none'], reps: '16 lần luân phiên', workSec: 45, restSec: 25,
-                setup: 'Tay không (100% Bodyweight)',
-                muscle: 'Đùi trước, Mông, Sức bền cơ',
-                tip: 'Bước chùng chân luân phiên trái - phải, giữ thân trên thẳng đứng, không để đầu gối vượt quá mũi chân quá nhiều.'
-            },
-            {
-                id: 'lo8', category: 'lower', name: 'Sumo Squat + Nhón gót (Đùi trong & Mông)',
-                equip: ['none'], reps: '20 lần', workSec: 45, restSec: 20,
-                setup: 'Tay không (100% Bodyweight)',
-                muscle: 'Đùi trong, Mông, Bắp chân',
-                tip: 'Mở rộng hai chân gấp 1.5 lần vai, mũi chân hướng ra 45 độ, hạ sâu hông xuống rồi đứng lên kết hợp kiễng cao gót.'
-            },
-
-            // --- 4. CORE & FINISHER ---
-            {
-                id: 'cf1', category: 'core_finisher', name: 'Hanging Knee Raises (Treo xà co gối bụng dưới)',
-                equip: ['pullup'], reps: '12 - 15 lần', workSec: 40, restSec: 25,
-                setup: 'Treo người trên xà đơn',
-                muscle: 'Bụng dưới, Cơ lõi, Lực nắm',
-                tip: 'Treo thẳng người, cuộn xương chậu kéo đầu gối lên cao ngang ngực, hạ xuống chậm không đung đưa người.'
-            },
-            {
-                id: 'cf2', category: 'core_finisher', name: 'Dumbbell Russian Twist (Xoay eo vặn tạ giảm mỡ hông)',
-                equip: ['dumbbell', 'mat'], reps: '24 lần (12 mỗi bên)', workSec: 45, restSec: 20,
-                setup: 'Tạ đơn 5kg (Lắp 2 bánh 2.5kg) hoặc 7.5kg',
-                muscle: 'Cơ liên sườn, Bụng ngang',
-                tip: 'Ngồi trên thảm, ngả lưng 45 độ, nhấc gót chân khỏi thảm và xoay hẳn vai đưa tạ chạm hai bên hông.'
-            },
-            {
-                id: 'cf3', category: 'core_finisher', name: 'Burpees Toàn thân (Vua đốt mỡ HIIT)',
-                equip: ['none'], reps: '40 giây tối đa tốc độ', workSec: 40, restSec: 25,
-                setup: 'Tay không (100% Bodyweight)',
-                muscle: 'Toàn thân, Tim mạch đốt calo cực đại',
-                tip: 'Chống tay xuống sàn, bật chân ra sau thành tư thế hít đất, thu chân về và bật nhảy vỗ tay qua đầu.'
-            },
-            {
-                id: 'cf4', category: 'core_finisher', name: 'Mountain Climbers (Leo núi tốc độ cao)',
-                equip: ['none'], reps: '45 giây liên tục', workSec: 45, restSec: 20,
-                setup: 'Tay không / Trên thảm tập',
-                muscle: 'Bụng dưới, Vai, Tim mạch',
-                tip: 'Giữ tư thế Plank cao, kéo đầu gối luân phiên hướng về ngực nhanh nhất có thể mà không nhổm mông lên cao.'
-            },
-            {
-                id: 'cf5', category: 'core_finisher', name: 'Plank Chạm vai + Đá chân sau',
-                equip: ['mat'], reps: '45 giây', workSec: 45, restSec: 20,
-                setup: 'Trên thảm tập',
-                muscle: 'Cơ lõi toàn diện, Vai, Bụng',
-                tip: 'Giữ Plank cao, lần lượt dùng tay chạm vai đối diện giữ hông cố định, giúp siết chặt vòng eo.'
-            },
-            {
-                id: 'cf6', category: 'core_finisher', name: 'Bicycle Crunches (Gập bụng đạp xe)',
-                equip: ['mat'], reps: '30 lần luân phiên', workSec: 45, restSec: 20,
-                setup: 'Trên thảm tập',
-                muscle: 'Bụng trên, Bụng dưới, Liên sườn',
-                tip: 'Nằm ngửa trên thảm, đưa khuỷu tay trái chạm đầu gối phải đồng thời duỗi thẳng chân trái, đổi bên liên tục.'
-            },
-            {
-                id: 'cf7', category: 'core_finisher', name: 'Bear Crawl + Shadow Boxing (Bò gấu & Đấm gió HIIT)',
-                equip: ['none'], reps: '45 giây', workSec: 45, restSec: 20,
-                setup: 'Tay không (100% Bodyweight)',
-                muscle: 'Toàn thân, Vai, Bụng, Tim mạch',
-                tip: 'Bò tư thế gấu gối cách sàn 3cm tiến lùi 4 nhịp, sau đó đứng bật dậy đấm thẳng liên hoàn 10 cú hết tốc lực.'
-            },
-            {
-                id: 'cf8', category: 'core_finisher', name: 'Plank To Elbow + Giãn cơ hạ nhiệt',
-                equip: ['none'], reps: '45 giây', workSec: 45, restSec: 15,
-                setup: 'Tay không / Thảm tập',
-                muscle: 'Cơ lõi Core & Phục hồi nhịp tim',
-                tip: 'Chuyển đổi từ Plank khuỷu tay lên Plank bàn tay trong 30s cuối, sau đó hít sâu thở chậm để hạ nhịp tim.'
-            }
+        // Danh sách model tự động dự phòng khi gặp tình trạng quá tải (high demand / 429 / 503)
+        const GEMINI_FALLBACK_MODELS = [
+            'gemini-3.8-flash',
+            'gemini-2.5-flash-lite',
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-lite'
         ];
 
         // ==========================================
@@ -2140,91 +1681,49 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 const img = new Image();
-                img.onload = function() {
-                    const maxDim = 800;
-                    let w = img.width;
-                    let h = img.height;
-                    if (w > maxDim || h > maxDim) {
-                        if (w > h) {
-                            h = Math.round((h * maxDim) / w);
-                            w = maxDim;
-                        } else {
-                            w = Math.round((w * maxDim) / h);
-                            h = maxDim;
+        // Hàm gọi Gemini API có cơ chế Auto-Fallback tự động chuyển model khi quá tải
+        async function callGeminiWithAutoFallback(apiKey, payload, statusBtnEl) {
+            let lastError = null;
+            for (let i = 0; i < GEMINI_FALLBACK_MODELS.length; i++) {
+                const modelName = GEMINI_FALLBACK_MODELS[i];
+                if (statusBtnEl && i > 0) {
+                    statusBtnEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang thử máy chủ dự phòng (${i + 1}/${GEMINI_FALLBACK_MODELS.length})...`;
+                }
+                try {
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json().catch(() => ({}));
+                        const errMsg = errData?.error?.message || `Lỗi HTTP ${response.status}`;
+                        const isOverloaded = response.status === 429 || response.status === 503 || response.status === 404 ||
+                            /high demand|overloaded|quota|not found|no longer available/i.test(errMsg);
+
+                        if (isOverloaded && i < GEMINI_FALLBACK_MODELS.length - 1) {
+                            lastError = new Error(errMsg);
+                            continue; // Tự động chuyển sang model tiếp theo
                         }
+                        throw new Error(errMsg);
                     }
 
-                    const canvas = document.createElement('canvas');
-                    canvas.width = w;
-                    canvas.height = h;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, w, h);
-
-                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
-                    currentMealPhotoBase64 = compressedDataUrl.split(',')[1];
-
-                    const thumbCanvas = document.createElement('canvas');
-                    const thumbSize = 120;
-                    thumbCanvas.width = thumbSize;
-                    thumbCanvas.height = Math.round((h * thumbSize) / w);
-                    thumbCanvas.getContext('2d').drawImage(img, 0, 0, thumbCanvas.width, thumbCanvas.height);
-                    currentMealThumbnail = thumbCanvas.toDataURL('image/jpeg', 0.65);
-
-                    const previewImg = document.getElementById('meal-photo-preview');
-                    previewImg.src = compressedDataUrl;
-                    previewImg.classList.remove('hidden');
-                    document.getElementById('meal-upload-placeholder').classList.add('hidden');
-                    document.getElementById('meal-analysis-result').classList.add('hidden');
-
-                    showToast('Đã tải ảnh bữa ăn! Bấm "Phân tích ảnh bằng AI" hoặc chọn ước lượng nhanh.');
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function applyQuickPhotoPreset(mealName, kcal, protein, carbs, fat, advice) {
-            lastAnalyzedMeal = {
-                source: 'photo',
-                meal_name: mealName,
-                items: [{ name: mealName, portion: '1 suất tiêu chuẩn', calories: kcal, protein, carbs, fat }],
-                total_calories: kcal,
-                total_protein: protein,
-                total_carbs: carbs,
-                total_fat: fat,
-                advice
-            };
-            renderMealAnalysisResult(lastAnalyzedMeal);
-            document.getElementById('quick-photo-estimator').classList.add('hidden');
-        }
-
-        const NUTRITION_RESPONSE_SCHEMA = {
-            type: 'OBJECT',
-            properties: {
-                meal_name: { type: 'STRING' },
-                items: {
-                    type: 'ARRAY',
-                    items: {
-                        type: 'OBJECT',
-                        properties: {
-                            name: { type: 'STRING' },
-                            portion: { type: 'STRING' },
-                            calories: { type: 'NUMBER' },
-                            protein: { type: 'NUMBER' },
-                            carbs: { type: 'NUMBER' },
-                            fat: { type: 'NUMBER' }
-                        },
-                        required: ['name', 'portion', 'calories', 'protein', 'carbs', 'fat']
+                    const result = await response.json();
+                    const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (!jsonText) throw new Error('Không nhận được dữ liệu phân tích từ AI.');
+                    return JSON.parse(jsonText);
+                } catch (err) {
+                    lastError = err;
+                    const isNetworkOrBusy = /high demand|overloaded|429|503|failed to fetch/i.test(err.message || '');
+                    if (!isNetworkOrBusy || i === GEMINI_FALLBACK_MODELS.length - 1) {
+                        throw err;
                     }
-                },
-                total_calories: { type: 'NUMBER' },
-                total_protein: { type: 'NUMBER' },
-                total_carbs: { type: 'NUMBER' },
-                total_fat: { type: 'NUMBER' },
-                advice: { type: 'STRING' }
-            },
-            required: ['meal_name', 'items', 'total_calories', 'total_protein', 'total_carbs', 'total_fat', 'advice']
-        };
+                }
+            }
+            throw lastError || new Error('Tất cả máy chủ AI đều đang bận.');
+        }
 
         async function analyzeMealWithGemini() {
             if (!currentMealPhotoBase64) {
@@ -2249,7 +1748,7 @@
 
             const promptText = `Bạn là chuyên gia dinh dưỡng Việt Nam. Hãy phân tích bức ảnh bữa ăn này cho nam giới 24 tuổi (1m64, ${appState.profile.weight}kg, mục tiêu giảm xuống ${appState.profile.goalWeight}kg, mục tiêu ~1,850 kcal/ngày, ~142g đạm).
 ${note ? `Ghi chú thêm về khẩu phần: "${note}".` : ''}
-Nhận diện từng món ăn Việt Nam có trong ảnh, ước lượng định lượng thực tế (bát, lạng, miếng...) và trả về JSON chính xác theo cấu trúc yêu cầu.`;
+Nhận diện từng món ăn Việt Nam có trong ảnh, ước lượng định lượng thực tế (bát, lạng, miếng, quả...) và trả về JSON chính xác theo cấu trúc yêu cầu.`;
 
             const payload = {
                 contents: [{
@@ -2271,31 +1770,15 @@ Nhận diện từng món ăn Việt Nam có trong ảnh, ước lượng địn
             };
 
             try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    throw new Error(errData?.error?.message || `Lỗi HTTP ${response.status}`);
-                }
-
-                const result = await response.json();
-                const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (!jsonText) throw new Error('Không nhận được dữ liệu phân tích từ AI.');
-
-                const parsed = JSON.parse(jsonText);
+                const parsed = await callGeminiWithAutoFallback(apiKey, payload, btn);
                 parsed.source = 'photo';
                 lastAnalyzedMeal = parsed;
                 renderMealAnalysisResult(parsed);
                 playBeep(740, 0.2);
-                showToast('AI đã tính xong Calo từ ảnh bữa ăn!');
+                showToast('AI đã tính xong Calo từ ảnh! Bạn có thể chỉnh sửa lại số nếu muốn.');
             } catch (err) {
                 console.error('Gemini Vision Error:', err);
-                showToast(`Lỗi kết nối AI: ${err.message}. Thử lại sau vài giây hoặc dùng "Ước lượng nhanh".`, 'warning');
+                showToast(`Lỗi kết nối AI: ${err.message}. Dùng "Ước lượng nhanh" bên dưới nhé!`, 'warning');
                 document.getElementById('quick-photo-estimator').classList.remove('hidden');
             } finally {
                 btn.disabled = false;
@@ -2326,7 +1809,7 @@ Nhận diện từng món ăn Việt Nam có trong ảnh, ước lượng địn
 
             const promptText = `Bạn là chuyên gia dinh dưỡng Việt Nam. Người dùng (nam 24 tuổi, 1m64, ${appState.profile.weight}kg, mục tiêu giảm xuống ${appState.profile.goalWeight}kg, mục tiêu ~1,850 kcal/ngày, ~142g đạm) vừa kể lại những món đã ăn:
 "${storyText}"
-Hãy bóc tách chi tiết từng món ăn và đồ uống được nhắc đến, ước lượng định lượng hợp lý của người Việt (bát, ổ, ly, lạng...) và tính Calo, Protein, Carb, Fat cho từng món cũng như tổng cộng. Đưa ra lời khuyên ngắn gọn, thực tế để cân đối các bữa còn lại.`;
+Hãy bóc tách chi tiết từng món ăn và đồ uống được nhắc đến, chú ý chính xác số lượng người dùng nêu (ví dụ: 1 quả trứng, nửa bát cơm, 100g ức gà...), ước lượng định lượng hợp lý của người Việt và tính Calo, Protein, Carb, Fat cho từng món cũng như tổng cộng.`;
 
             const payload = {
                 contents: [{
@@ -2340,31 +1823,15 @@ Hãy bóc tách chi tiết từng món ăn và đồ uống được nhắc đ�
             };
 
             try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    throw new Error(errData?.error?.message || `Lỗi HTTP ${response.status}`);
-                }
-
-                const result = await response.json();
-                const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (!jsonText) throw new Error('Không nhận được phản hồi từ AI.');
-
-                const parsed = JSON.parse(jsonText);
+                const parsed = await callGeminiWithAutoFallback(apiKey, payload, btn);
                 parsed.source = 'story';
                 lastAnalyzedMeal = parsed;
                 renderMealAnalysisResult(parsed);
                 playBeep(740, 0.2);
-                showToast('AI đã tính xong Calo từ danh sách món bạn kể!');
+                showToast('AI đã tính xong Calo! Bạn có thể bấm vào số để chỉnh sửa trước khi cộng.');
             } catch (err) {
                 console.error('Gemini Text Error:', err);
-                showToast(`AI đang bận (${err.message}). Đang tự động chuyển sang tính nhanh từ khóa!`, 'warning');
+                showToast(`Máy chủ AI bận, đã tự động chuyển sang tính từ khóa thông minh!`, 'warning');
                 analyzeMealStoryOffline();
             } finally {
                 btn.disabled = false;
@@ -2372,7 +1839,7 @@ Hãy bóc tách chi tiết từng món ăn và đồ uống được nhắc đ�
             }
         }
 
-        // Offline Vietnamese Food Keyword Parser Fallback
+        // Offline Vietnamese Food Keyword Parser (Chuẩn 1 đơn vị & hiểu số lượng tiếng Việt)
         function analyzeMealStoryOffline() {
             const raw = document.getElementById('meal-story-textarea').value.trim().toLowerCase();
             if (!raw) {
@@ -2380,106 +1847,146 @@ Hãy bóc tách chi tiết từng món ăn và đồ uống được nhắc đ�
                 return;
             }
 
+            // Chuẩn hóa từ chỉ số lượng tiếng Việt sang số thực
+            let normalizedText = raw
+                .replace(/\bnửa\b/g, '0.5')
+                .replace(/\b1\/2\b/g, '0.5')
+                .replace(/\b1\/4\b/g, '0.25')
+                .replace(/\bmột\b/g, '1')
+                .replace(/\bhai\b/g, '2')
+                .replace(/\bba\b/g, '3')
+                .replace(/\bbốn\b/g, '4')
+                .replace(/\bnăm\b/g, '5');
+
+            // Đơn vị chuẩn cho 1 khẩu phần cơ bản (ví dụ: 1 quả trứng, 100g thịt, 1 bát cơm)
             const dictionary = [
-                { keys: ['cơm trắng', 'cơm'], name: 'Cơm trắng (1 bát)', kcal: 200, p: 4, c: 44, f: 0.5 },
-                { keys: ['gạo lứt'], name: 'Cơm gạo lứt (1 bát)', kcal: 175, p: 4, c: 38, f: 1.5 },
-                { keys: ['phở bò'], name: 'Phở bò tái (1 tô)', kcal: 480, p: 28, c: 62, f: 12 },
-                { keys: ['phở gà', 'phở'], name: 'Phở gà (1 tô)', kcal: 440, p: 30, c: 60, f: 9 },
-                { keys: ['bún bò'], name: 'Bún bò Huế (1 tô)', kcal: 540, p: 28, c: 65, f: 18 },
-                { keys: ['bún chả'], name: 'Bún chả (1 suất)', kcal: 620, p: 32, c: 68, f: 24 },
-                { keys: ['bún thịt nướng', 'bún'], name: 'Bún thịt nướng (1 tô)', kcal: 520, p: 28, c: 66, f: 15 },
-                { keys: ['bánh mì nướng muối ớt'], name: 'Bánh mì nướng muối ớt (1 ổ)', kcal: 380, p: 11, c: 54, f: 13 },
-                { keys: ['bánh mì'], name: 'Bánh mì thịt/trứng (1 ổ)', kcal: 410, p: 18, c: 52, f: 14 },
-                { keys: ['bánh tráng trộn'], name: 'Bánh tráng trộn (1 phần)', kcal: 390, p: 10, c: 54, f: 15 },
-                { keys: ['nem nướng'], name: 'Nem nướng (1 mẹt vừa)', kcal: 620, p: 30, c: 68, f: 24 },
-                { keys: ['trứng gà', 'trứng vịt', 'trứng ốp', 'trứng luộc', 'trứng'], name: 'Trứng gà (2 quả)', kcal: 155, p: 13, c: 1, f: 11 },
-                { keys: ['ức gà'], name: 'Ức gà (150g)', kcal: 245, p: 46, c: 0, f: 5 },
-                { keys: ['thịt kho', 'thịt lợn', 'thịt heo', 'thịt nạc'], name: 'Thịt lợn (150g)', kcal: 290, p: 32, c: 2, f: 17 },
-                { keys: ['thịt bò'], name: 'Thịt bò (150g)', kcal: 310, p: 36, c: 0, f: 18 },
-                { keys: ['đậu phụ', 'đậu hũ'], name: 'Đậu phụ (2 bìa)', kcal: 160, p: 16, c: 4, f: 9 },
-                { keys: ['cá'], name: 'Cá kho/nướng (150g)', kcal: 240, p: 34, c: 2, f: 10 },
-                { keys: ['rau muống', 'rau cải', 'rau luộc', 'canh rau', 'rau'], name: 'Rau xanh luộc/canh (1 đĩa)', kcal: 55, p: 3, c: 9, f: 1 },
-                { keys: ['khoai lang'], name: 'Khoai lang (1 củ vừa)', kcal: 140, p: 2, c: 32, f: 0.3 },
-                { keys: ['chuối'], name: 'Chuối (1 quả)', kcal: 105, p: 1, c: 27, f: 0.4 },
-                { keys: ['chè matcha', 'trà sữa', 'chè'], name: 'Chè / Trà sữa (1 ly)', kcal: 410, p: 5, c: 68, f: 13 },
-                { keys: ['cà phê sữa'], name: 'Cà phê sữa đá (1 ly)', kcal: 180, p: 3, c: 26, f: 6 },
-                { keys: ['sữa tươi', 'sữa'], name: 'Sữa tươi (1 hộp 180ml)', kcal: 110, p: 6, c: 9, f: 5 }
+                { keys: ['cơm gạo lứt', 'gạo lứt'], baseName: 'Cơm gạo lứt', unit: 'bát', isGram: false, kcal: 175, p: 4, c: 38, f: 1.5 },
+                { keys: ['cơm trắng', 'cơm'], baseName: 'Cơm trắng', unit: 'bát', isGram: false, kcal: 200, p: 4, c: 44, f: 0.5 },
+                { keys: ['phở bò'], baseName: 'Phở bò tái', unit: 'tô', isGram: false, kcal: 480, p: 28, c: 62, f: 12 },
+                { keys: ['phở gà', 'phở'], baseName: 'Phở gà', unit: 'tô', isGram: false, kcal: 440, p: 30, c: 60, f: 9 },
+                { keys: ['bún bò'], baseName: 'Bún bò Huế', unit: 'tô', isGram: false, kcal: 540, p: 28, c: 65, f: 18 },
+                { keys: ['bún chả'], baseName: 'Bún chả', unit: 'suất', isGram: false, kcal: 620, p: 32, c: 68, f: 24 },
+                { keys: ['bún thịt nướng', 'bún'], baseName: 'Bún thịt nướng', unit: 'tô', isGram: false, kcal: 520, p: 28, c: 66, f: 15 },
+                { keys: ['bánh mì nướng muối ớt'], baseName: 'Bánh mì nướng muối ớt', unit: 'ổ', isGram: false, kcal: 380, p: 11, c: 54, f: 13 },
+                { keys: ['bánh mì'], baseName: 'Bánh mì thịt/trứng', unit: 'ổ', isGram: false, kcal: 410, p: 18, c: 52, f: 14 },
+                { keys: ['bánh tráng trộn'], baseName: 'Bánh tráng trộn', unit: 'phần', isGram: false, kcal: 390, p: 10, c: 54, f: 15 },
+                { keys: ['nem nướng'], baseName: 'Nem nướng', unit: 'mẹt', isGram: false, kcal: 620, p: 30, c: 68, f: 24 },
+                { keys: ['trứng gà', 'trứng vịt', 'trứng ốp', 'trứng luộc', 'trứng'], baseName: 'Trứng gà', unit: 'quả', isGram: false, kcal: 75, p: 6.5, c: 0.6, f: 5.3 },
+                { keys: ['ức gà'], baseName: 'Ức gà', unit: '100g', isGram: true, kcal: 165, p: 31, c: 0, f: 3.6 },
+                { keys: ['thịt kho', 'thịt lợn', 'thịt heo', 'thịt nạc'], baseName: 'Thịt lợn nạc', unit: '100g', isGram: true, kcal: 195, p: 22, c: 1, f: 11 },
+                { keys: ['thịt bò'], baseName: 'Thịt bò', unit: '100g', isGram: true, kcal: 210, p: 25, c: 0, f: 12 },
+                { keys: ['đậu phụ', 'đậu hũ'], baseName: 'Đậu phụ', unit: 'miếng/bìa', isGram: false, kcal: 80, p: 8, c: 2, f: 4.5 },
+                { keys: ['cá'], baseName: 'Cá kho/nướng', unit: '100g', isGram: true, kcal: 160, p: 23, c: 1, f: 7 },
+                { keys: ['tôm'], baseName: 'Tôm hấp/rang', unit: '100g', isGram: true, kcal: 110, p: 22, c: 1, f: 1.5 },
+                { keys: ['rau muống', 'rau cải', 'rau luộc', 'canh rau', 'rau'], baseName: 'Rau xanh luộc/canh', unit: 'đĩa/bát', isGram: false, kcal: 50, p: 3, c: 8, f: 1 },
+                { keys: ['khoai lang'], baseName: 'Khoai lang', unit: 'củ', isGram: true, kcal: 130, p: 2, c: 30, f: 0.3 },
+                { keys: ['chuối'], baseName: 'Chuối', unit: 'quả', isGram: false, kcal: 100, p: 1, c: 26, f: 0.3 },
+                { keys: ['chè matcha', 'trà sữa', 'chè'], baseName: 'Chè / Trà sữa', unit: 'ly', isGram: false, kcal: 410, p: 5, c: 68, f: 13 },
+                { keys: ['cà phê sữa'], baseName: 'Cà phê sữa đá', unit: 'ly', isGram: false, kcal: 180, p: 3, c: 26, f: 6 },
+                { keys: ['sữa tươi', 'sữa'], baseName: 'Sữa tươi', unit: 'hộp', isGram: false, kcal: 110, p: 6, c: 9, f: 5 }
             ];
 
             const matchedItems = [];
-            let workingText = raw;
+            let workingText = normalizedText;
 
             dictionary.forEach(entry => {
                 const hit = entry.keys.find(k => workingText.includes(k));
                 if (hit) {
-                    // Check simple multiplier before keyword (e.g., "2 bát cơm", "1.5 bát cơm")
-                    const regex = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(?:bát|quả|ổ|ly|phần|suất|đĩa|củ|hộp)?\\s*${hit}`);
-                    const m = workingText.match(regex);
-                    const mult = m ? Math.min(5, Math.max(0.5, parseFloat(m[1]))) : 1;
+                    let mult = 1;
+                    let portionLabel = `1 ${entry.unit}`;
+
+                    // Bắt số gram/lạng trước từ khóa (vd: "150g ức gà", "2 lạng thịt")
+                    const gramRegex = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(g|gr|gram|lạng)\\s*(?:thịt\\s*)?${hit}`);
+                    const gramMatch = workingText.match(gramRegex);
+
+                    if (gramMatch && entry.isGram) {
+                        const rawNum = parseFloat(gramMatch[1]);
+                        const unitStr = gramMatch[2];
+                        const grams = unitStr === 'lạng' ? rawNum * 100 : rawNum;
+                        mult = Math.max(0.2, grams / 100);
+                        portionLabel = `${Math.round(grams)}g`;
+                    } else {
+                        // Bắt số đếm trước đơn vị hoặc trực tiếp trước tên món (vd: "1 quả trứng", "2 bát cơm", "0.5 bát cơm")
+                        const countRegex = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(?:bát|tô|quả|trái|ổ|ly|cốc|phần|suất|đĩa|củ|hộp|miếng|bìa|mẹt)?\\s*${hit}`);
+                        const countMatch = workingText.match(countRegex);
+                        if (countMatch) {
+                            mult = Math.min(10, Math.max(0.25, parseFloat(countMatch[1])));
+                            portionLabel = entry.isGram
+                                ? `${Math.round(mult * 100)}g`
+                                : `${mult} ${entry.unit}`;
+                        }
+                    }
 
                     matchedItems.push({
-                        name: entry.name,
-                        portion: mult !== 1 ? `× ${mult}` : '1 khẩu phần',
+                        name: entry.baseName,
+                        portion: portionLabel,
                         calories: Math.round(entry.kcal * mult),
-                        protein: Math.round(entry.p * mult),
-                        carbs: Math.round(entry.c * mult),
-                        fat: Math.round(entry.f * mult)
+                        protein: Math.round(entry.p * mult * 10) / 10,
+                        carbs: Math.round(entry.c * mult * 10) / 10,
+                        fat: Math.round(entry.f * mult * 10) / 10
                     });
-                    // Remove matched keyword to avoid double-matching substrings
+
                     entry.keys.forEach(k => { workingText = workingText.split(k).join(' '); });
                 }
             });
 
             if (matchedItems.length === 0) {
                 matchedItems.push({
-                    name: 'Bữa ăn hỗn hợp (Ước lượng trung bình)',
+                    name: 'Bữa ăn tự nhập (Bấm vào số để sửa lại)',
                     portion: '1 bữa',
-                    calories: 550,
-                    protein: 28,
-                    carbs: 65,
-                    fat: 18
+                    calories: 450,
+                    protein: 25,
+                    carbs: 50,
+                    fat: 14
                 });
             }
 
             const totalCal = matchedItems.reduce((s, i) => s + i.calories, 0);
-            const totalP = matchedItems.reduce((s, i) => s + i.protein, 0);
-            const totalC = matchedItems.reduce((s, i) => s + i.carbs, 0);
-            const totalF = matchedItems.reduce((s, i) => s + i.fat, 0);
+            const totalP = Math.round(matchedItems.reduce((s, i) => s + i.protein, 0));
+            const totalC = Math.round(matchedItems.reduce((s, i) => s + i.carbs, 0));
+            const totalF = Math.round(matchedItems.reduce((s, i) => s + i.fat, 0));
 
             lastAnalyzedMeal = {
                 source: 'story',
-                meal_name: 'Tổng hợp món đã kể (Ước lượng nhanh)',
+                meal_name: matchedItems.length === 1 ? `${matchedItems[0].name} (${matchedItems[0].portion})` : 'Tổng hợp món đã kể',
                 items: matchedItems,
                 total_calories: totalCal,
                 total_protein: totalP,
                 total_carbs: totalC,
                 total_fat: totalF,
-                advice: totalCal > 900
-                    ? 'Lượng calo lần này khá cao, bữa kế tiếp bạn nên ưu tiên rau luộc và đạm nạc (ức gà, trứng, đậu) để giữ mức thâm hụt!'
-                    : 'Mức calo rất hợp lý! Nhớ uống đủ 2 - 2.5 lít nước lọc trong ngày nhé.'
+                advice: 'Bạn có thể bấm trực tiếp vào các ô số Calo / Đạm phía trên nếu muốn chỉnh lại khẩu phần cho sát thực tế nhất.'
             };
 
             renderMealAnalysisResult(lastAnalyzedMeal);
-            showToast('Đã tính xong Calo từ các món bạn vừa kể!');
+            showToast('Đã tính xong Calo! Bạn có thể sửa lại số trực tiếp trước khi cộng.');
         }
 
         function renderMealAnalysisResult(data) {
             const box = document.getElementById('meal-analysis-result');
-            document.getElementById('res-meal-name').innerText = data.meal_name || 'Bữa ăn đã phân tích';
-            document.getElementById('res-total-kcal').innerText = `${Math.round(data.total_calories)} kcal`;
-            document.getElementById('res-total-macros').innerText = `${Math.round(data.total_protein)}g Đạm • ${Math.round(data.total_carbs)}g Carb • ${Math.round(data.total_fat)}g Fat`;
+            document.getElementById('res-meal-name-input').value = data.meal_name || 'Bữa ăn đã phân tích';
             document.getElementById('res-meal-advice').innerText = data.advice || 'Ưu tiên ăn rau và đạm trước để kiểm soát đường huyết.';
 
+            document.getElementById('edit-res-kcal').value = Math.round(data.total_calories || 0);
+            document.getElementById('edit-res-protein').value = Math.round(data.total_protein || 0);
+            document.getElementById('edit-res-carbs').value = Math.round(data.total_carbs || 0);
+            document.getElementById('edit-res-fat').value = Math.round(data.total_fat || 0);
+
+            updateResultHeaderBadges();
+
             const itemsEl = document.getElementById('res-items-list');
-            itemsEl.innerHTML = (data.items || []).map(item => `
-                <div class="flex items-center justify-between bg-dark-900 px-3 py-2 rounded-lg border border-slate-800 gap-2">
-                    <div class="min-w-0 flex-1">
+            itemsEl.innerHTML = (data.items || []).map((item, idx) => `
+                <div class="flex flex-wrap items-center justify-between bg-dark-900 px-3 py-2 rounded-lg border border-slate-800 gap-2">
+                    <div class="min-w-[140px] flex-1">
                         <span class="font-bold text-slate-200">${item.name}</span>
                         <span class="text-slate-400 ml-1">(${item.portion})</span>
                     </div>
-                    <div class="text-right shrink-0">
-                        <span class="font-bold text-orange-400">${Math.round(item.calories)} kcal</span>
-                        <span class="text-sky-400 ml-1.5">${Math.round(item.protein)}g P</span>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <input type="number" value="${Math.round(item.calories)}" onchange="updateSingleAnalyzedItem(${idx}, 'calories', this.value)"
+                            class="w-16 bg-dark-950 border border-slate-700 rounded px-1.5 py-1 text-right font-bold text-orange-400 text-xs focus:outline-none focus:border-orange-400" title="Sửa Calo món này">
+                        <span class="text-[11px] text-slate-400">kcal</span>
+                        <input type="number" value="${Math.round(item.protein)}" onchange="updateSingleAnalyzedItem(${idx}, 'protein', this.value)"
+                            class="w-12 bg-dark-950 border border-slate-700 rounded px-1.5 py-1 text-right font-bold text-sky-400 text-xs focus:outline-none focus:border-sky-400" title="Sửa Đạm món này">
+                        <span class="text-[11px] text-slate-400">g P</span>
                     </div>
                 </div>
             `).join('');
@@ -2487,8 +1994,42 @@ Hãy bóc tách chi tiết từng món ăn và đồ uống được nhắc đ�
             box.classList.remove('hidden');
         }
 
+        function updateSingleAnalyzedItem(idx, field, newVal) {
+            if (!lastAnalyzedMeal || !lastAnalyzedMeal.items[idx]) return;
+            const num = Math.max(0, parseFloat(newVal) || 0);
+            lastAnalyzedMeal.items[idx][field] = num;
+
+            // Cộng lại tổng từ danh sách món con
+            const sumCal = lastAnalyzedMeal.items.reduce((s, it) => s + (parseFloat(it.calories) || 0), 0);
+            const sumPro = lastAnalyzedMeal.items.reduce((s, it) => s + (parseFloat(it.protein) || 0), 0);
+
+            document.getElementById('edit-res-kcal').value = Math.round(sumCal);
+            document.getElementById('edit-res-protein').value = Math.round(sumPro);
+            syncEditedMealTotals();
+        }
+
+        function syncEditedMealTotals() {
+            if (!lastAnalyzedMeal) return;
+            lastAnalyzedMeal.total_calories = Math.max(0, parseFloat(document.getElementById('edit-res-kcal').value) || 0);
+            lastAnalyzedMeal.total_protein = Math.max(0, parseFloat(document.getElementById('edit-res-protein').value) || 0);
+            lastAnalyzedMeal.total_carbs = Math.max(0, parseFloat(document.getElementById('edit-res-carbs').value) || 0);
+            lastAnalyzedMeal.total_fat = Math.max(0, parseFloat(document.getElementById('edit-res-fat').value) || 0);
+            updateResultHeaderBadges();
+        }
+
+        function updateResultHeaderBadges() {
+            const kcal = Math.round(parseFloat(document.getElementById('edit-res-kcal').value) || 0);
+            const p = Math.round(parseFloat(document.getElementById('edit-res-protein').value) || 0);
+            const c = Math.round(parseFloat(document.getElementById('edit-res-carbs').value) || 0);
+            const f = Math.round(parseFloat(document.getElementById('edit-res-fat').value) || 0);
+            document.getElementById('res-total-kcal').innerText = `${kcal} kcal`;
+            document.getElementById('res-total-macros').innerText = `${p}g Đạm • ${c}g Carb • ${f}g Fat`;
+        }
+
         function confirmAddAnalyzedMeal() {
             if (!lastAnalyzedMeal) return;
+            syncEditedMealTotals();
+            const customTitle = document.getElementById('res-meal-name-input').value.trim() || lastAnalyzedMeal.meal_name;
 
             if (lastAnalyzedMeal.source === 'story' && Array.isArray(lastAnalyzedMeal.items) && lastAnalyzedMeal.items.length > 1) {
                 lastAnalyzedMeal.items.forEach((item, idx) => {
@@ -2503,7 +2044,7 @@ Hãy bóc tách chi tiết từng món ăn và đồ uống được nhắc đ�
                 const prefix = lastAnalyzedMeal.source === 'photo' ? '📷' : '📝';
                 appState.todayLog.foods.push({
                     id: Date.now(),
-                    name: `${prefix} ${lastAnalyzedMeal.meal_name}`,
+                    name: `${prefix} ${customTitle}`,
                     kcal: Math.round(lastAnalyzedMeal.total_calories),
                     protein: Math.round(lastAnalyzedMeal.total_protein),
                     thumb: lastAnalyzedMeal.source === 'photo' ? (currentMealThumbnail || null) : null
