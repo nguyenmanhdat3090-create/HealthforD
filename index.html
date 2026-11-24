@@ -540,10 +540,10 @@
                     </div>
                 </div>
 
-                <!-- Manual JSON Backup / Restore Option -->
-                <div class="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                    <span class="text-xs font-semibold text-slate-400">💾 Sao lưu & Khôi phục thủ công (JSON):</span>
-                    <div class="flex flex-wrap gap-2">
+                <!-- Visible Auth Status & Error Diagnostic Box -->
+                <div id="auth-error-msg" class="hidden bg-rose-950/70 border border-rose-500/40 rounded-xl p-3 text-xs text-rose-200 leading-relaxed"></div>
+
+                <!-- Collapsible Firebase Config Panel -->
                         <button type="button" onclick="exportBackupJson()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all">
                             ⬇️ Xuất file sao lưu
                         </button>
@@ -660,7 +660,7 @@
 
     <script>
         // ==========================================================
-        // 1. CONSTANTS & DEFAULT STATE (HARDCODED FIREBASE CONFIG)
+        // 1. CONSTANTS & DEFAULT STATE
         // ==========================================================
         const DEFAULT_FIREBASE_CONFIG = {
             apiKey: "AIzaSyCVRJoUY4KiyO5C_Kc7gRcAIHY51ppsQ8s",
@@ -673,27 +673,188 @@
         };
         const STORAGE_KEY = 'fithome_ai_state_v4';
         const API_KEY_STORAGE = 'fithome_gemini_api_key';
-// ... existing code ... -->
+        const FIREBASE_CFG_STORAGE = 'fithome_firebase_cfg';
         // ==========================================================
         // 8. FIREBASE CLOUD SYNC & GOOGLE GMAIL AUTH
         // ==========================================================
         function initializeFirebase() {
-            if (!DEFAULT_FIREBASE_CONFIG || !DEFAULT_FIREBASE_CONFIG.apiKey || typeof firebase === 'undefined') {
+            const cfg = getFirebaseConfig();
+            if (!cfg || typeof firebase === 'undefined') {
                 updateCloudAuthUI(null);
                 return;
             }
             try {
-                if (!firebase.apps.length) firebase.initializeApp(DEFAULT_FIREBASE_CONFIG);
+                if (!firebase.apps.length) firebase.initializeApp(cfg);
                 fbAuth = firebase.auth();
                 fbDb = firebase.firestore();
+
+                // Set local persistence so users stay logged in across reloads
+                fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
+
+                // Process redirect login result (for iPhone Safari / popup-blocked browsers)
+                fbAuth.getRedirectResult()
+                    .then((result) => {
+                        if (result && result.user) {
+                            clearAuthErrorMsg();
+                            showToast('Đăng nhập Gmail thành công!');
+                        }
+                    })
+                    .catch((err) => {
+                        handleFirebaseAuthError(err);
+                    });
 
                 fbAuth.onAuthStateChanged(async (user) => {
                     currentUser = user;
                     updateCloudAuthUI(user);
-                    if (user) await pullFromFirebaseCloud(user);
+                    if (user) {
+                        clearAuthErrorMsg();
+                        await pullFromFirebaseCloud(user);
+                    }
                 });
             } catch (err) {
                 console.warn('Firebase init warning:', err);
+                showAuthErrorMsg('Lỗi khởi tạo Firebase: ' + err.message);
+            }
+        }
+
+        function showAuthErrorMsg(htmlMsg) {
+            const box = document.getElementById('auth-error-msg');
+            if (!box) return;
+            box.innerHTML = htmlMsg;
+            box.classList.remove('hidden');
+        }
+
+        function clearAuthErrorMsg() {
+            const box = document.getElementById('auth-error-msg');
+            if (!box) return;
+            box.innerHTML = '';
+            box.classList.add('hidden');
+        }
+
+        function handleFirebaseAuthError(err) {
+            if (!err) return;
+            console.warn('Firebase Auth Error:', err.code, err.message);
+            if (err.code === 'auth/unauthorized-domain') {
+                const msg = `⚠️ <strong>Tên miền chưa được cấp quyền trên Firebase:</strong> Hãy vào <strong>Firebase Console → Authentication → Settings → Authorized domains</strong> và thêm dòng <code class="bg-slate-900 px-1.5 py-0.5 rounded text-emerald-300">nguyenmanhdat3090-create.github.io</code>.`;
+                showAuthErrorMsg(msg);
+                showToast('Chưa thêm tên miền vào Authorized domains trên Firebase!', 'warning');
+            } else if (err.code === 'auth/operation-not-allowed') {
+                const msg = `⚠️ <strong>Chưa bật đăng nhập Google:</strong> Hãy vào <strong>Firebase Console → Authentication → Sign-in method</strong>, bật <strong>Google</strong> và bấm Save.`;
+                showAuthErrorMsg(msg);
+                showToast('Chưa bật nhà cung cấp Google trong Firebase!', 'warning');
+            } else if (err.code === 'auth/cancelled-popup-request') {
+                // Ignore duplicate click noise
+            } else {
+                showAuthErrorMsg(`⚠️ <strong>Lỗi đăng nhập (${err.code || 'unknown'}):</strong> ${err.message}`);
+                showToast('Lỗi đăng nhập: ' + err.message, 'warning');
+            }
+        }
+
+        function updateCloudAuthUI(user) {
+            const headerDot = document.getElementById('header-gmail-dot');
+            const headerLabel = document.getElementById('header-gmail-label');
+            const statusText = document.getElementById('cloud-status-text');
+            const avatar = document.getElementById('progress-user-avatar');
+            const btnIn = document.getElementById('btn-google-signin');
+            const btnSync = document.getElementById('btn-cloud-sync-now');
+            const btnOut = document.getElementById('btn-google-signout');
+
+            if (user) {
+                headerDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+                headerLabel.innerText = user.displayName || user.email || 'Đã đồng bộ';
+                statusText.innerHTML = `<span class="text-emerald-400 font-bold">Đã đăng nhập: ${user.email} • ☁️ Đã đồng bộ</span>`;
+                if (user.photoURL) {
+                    avatar.src = user.photoURL;
+                    avatar.classList.remove('hidden');
+                }
+                btnIn.classList.add('hidden');
+                btnIn.disabled = false;
+                btnSync.classList.remove('hidden');
+                btnOut.classList.remove('hidden');
+            } else {
+                headerDot.className = 'w-2 h-2 rounded-full bg-slate-500';
+                headerLabel.innerText = 'Đăng nhập Gmail';
+                statusText.innerText = 'Chưa đăng nhập Gmail — Dữ liệu lưu trên máy này';
+                avatar.classList.add('hidden');
+                btnIn.classList.remove('hidden');
+                btnIn.disabled = false;
+                btnSync.classList.add('hidden');
+                btnOut.classList.add('hidden');
+            }
+        }
+
+        function handleHeaderAuthAction() {
+            if (currentUser) window.switchTab('progress');
+            else signInWithGmail();
+        }
+
+        function isMobileSafariOrStandalone() {
+            const ua = navigator.userAgent || '';
+            const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+            return isIOS || isStandalone;
+        }
+
+        async function signInWithGmail() {
+            clearAuthErrorMsg();
+            const cfg = getFirebaseConfig();
+            if (!cfg) {
+                window.switchTab('progress');
+                document.getElementById('firebase-config-box').classList.remove('hidden');
+                showToast('Hãy dán cấu hình Firebase 1 lần duy nhất để bật đăng nhập Gmail nhé!', 'warning');
+                return;
+            }
+            if (!fbAuth) initializeFirebase();
+
+            const btnIn = document.getElementById('btn-google-signin');
+            if (btnIn) btnIn.disabled = true;
+
+            const provider = new firebase.auth.GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' });
+
+            // On iOS Safari / Home Screen PWA, signInWithRedirect is far more reliable than popup
+            if (isMobileSafariOrStandalone()) {
+                try {
+                    showToast('Đang chuyển sang trang chọn tài khoản Google...');
+                    await fbAuth.signInWithRedirect(provider);
+                } catch (err) {
+                    if (btnIn) btnIn.disabled = false;
+                    handleFirebaseAuthError(err);
+                }
+                return;
+            }
+
+            try {
+                await fbAuth.signInWithPopup(provider);
+                showToast('Đăng nhập Gmail thành công!');
+            } catch (err) {
+                if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
+                    // Fallback seamlessly to full-page redirect if Cốc Cốc / browser blocks popups
+                    showToast('Trình duyệt chặn cửa sổ bật lên — đang chuyển sang đăng nhập toàn trang...', 'warning');
+                    try {
+                        await fbAuth.signInWithRedirect(provider);
+                    } catch (redirErr) {
+                        if (btnIn) btnIn.disabled = false;
+                        handleFirebaseAuthError(redirErr);
+                    }
+                } else {
+                    if (btnIn) btnIn.disabled = false;
+                    handleFirebaseAuthError(err);
+                }
+            }
+        }
+
+        async function signOutFromGmail() {
+            if (!fbAuth) return;
+            try {
+                clearTimeout(cloudSaveTimeout);
+                await fbAuth.signOut();
+                currentUser = null;
+                updateCloudAuthUI(null);
+                clearAuthErrorMsg();
+                showToast('Đã đăng xuất khỏi Gmail. Bạn có thể bấm Đăng nhập bằng Gmail bất kỳ lúc nào.');
+            } catch (err) {
+                showToast('Lỗi khi đăng xuất: ' + err.message, 'warning');
             }
         }
 
@@ -1015,6 +1176,22 @@
             syncStepsFromUrlParams();
             renderAllUI();
             initializeFirebase();
+
+            const headerAuthBtn = document.getElementById('header-gmail-btn');
+            if (headerAuthBtn) {
+                headerAuthBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    handleHeaderAuthAction();
+                });
+            }
+            const mainSignInBtn = document.getElementById('btn-google-signin');
+            if (mainSignInBtn) {
+                mainSignInBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    signInWithGmail();
+                });
+            }
+
             window.addEventListener('resize', () => {
                 if (!document.getElementById('view-progress').classList.contains('hidden')) {
                     window.renderWeightChart();
