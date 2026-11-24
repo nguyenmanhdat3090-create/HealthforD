@@ -109,14 +109,14 @@
 
                 <!-- Desktop Navigation -->
                 <nav class="hidden md:flex items-center gap-1.5 bg-dark-900 p-1 rounded-xl border border-slate-800 shrink-0">
-                    <button type="button" onclick="switchTab('workout')" id="nav-desk-workout" class="cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950 flex items-center gap-1.5">
-                        <i class="fa-solid fa-dumbbell"></i><span>Tập luyện</span>
+                    <button type="button" data-tab="workout" id="nav-desk-workout" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950">
+                        <i class="fa-solid fa-dumbbell mr-1.5 pointer-events-none"></i>Tập luyện
                     </button>
-                    <button type="button" onclick="switchTab('diet')" id="nav-desk-diet" class="cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all flex items-center gap-1.5">
-                        <i class="fa-solid fa-utensils"></i><span>Bếp & Dinh dưỡng</span>
+                    <button type="button" data-tab="diet" id="nav-desk-diet" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all">
+                        <i class="fa-solid fa-utensils mr-1.5 pointer-events-none"></i>Bếp & Dinh dưỡng
                     </button>
-                    <button type="button" onclick="switchTab('progress')" id="nav-desk-progress" class="cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all flex items-center gap-1.5">
-                        <i class="fa-solid fa-chart-line"></i><span>Tiến độ & Hồ sơ</span>
+                    <button type="button" data-tab="progress" id="nav-desk-progress" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all">
+                        <i class="fa-solid fa-chart-line mr-1.5 pointer-events-none"></i>Tiến độ & Hồ sơ
                     </button>
                 </nav>
             </div>
@@ -847,28 +847,60 @@
     <!-- Mobile Bottom Navigation -->
     <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-dark-950/95 backdrop-blur-lg border-t border-slate-800 px-2 py-2">
         <div class="grid grid-cols-3 gap-1 max-w-md mx-auto">
-            <button type="button" onclick="switchTab('workout')" id="nav-mob-workout" class="cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10">
-                <i class="fa-solid fa-dumbbell text-base mb-0.5"></i>
-                <span class="text-[11px] font-bold">Tập luyện</span>
+            <button type="button" data-tab="workout" id="nav-mob-workout" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10">
+                <i class="fa-solid fa-dumbbell text-base mb-0.5 pointer-events-none"></i>
+                <span class="text-[11px] font-bold pointer-events-none">Tập luyện</span>
             </button>
-            <button type="button" onclick="switchTab('diet')" id="nav-mob-diet" class="cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
-                <i class="fa-solid fa-utensils text-base mb-0.5"></i>
-                <span class="text-[11px] font-semibold">Bếp & Ăn</span>
+            <button type="button" data-tab="diet" id="nav-mob-diet" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
+                <i class="fa-solid fa-utensils text-base mb-0.5 pointer-events-none"></i>
+                <span class="text-[11px] font-semibold pointer-events-none">Bếp & Ăn</span>
             </button>
-            <button type="button" onclick="switchTab('progress')" id="nav-mob-progress" class="cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
-                <i class="fa-solid fa-chart-line text-base mb-0.5"></i>
-                <span class="text-[11px] font-semibold">Tiến độ</span>
+            <button type="button" data-tab="progress" id="nav-mob-progress" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
+                <i class="fa-solid fa-chart-line text-base mb-0.5 pointer-events-none"></i>
+                <span class="text-[11px] font-semibold pointer-events-none">Tiến độ</span>
             </button>
         </div>
     </nav>
 
     <script>
         // ==========================================
+        // 0. SAFE TAB NAVIGATION BINDING
+        // ==========================================
+        window.switchTab = function(tabName) {
+            ['workout', 'diet', 'progress'].forEach(t => {
+                const sec = document.getElementById(`tab-${t}`);
+                const deskBtn = document.getElementById(`nav-desk-${t}`);
+                const mobBtn = document.getElementById(`nav-mob-${t}`);
+                if (!sec) return;
+                if (t === tabName) {
+                    sec.classList.remove('hidden');
+                    if (deskBtn) deskBtn.className = 'tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950';
+                    if (mobBtn) mobBtn.className = 'tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10';
+                } else {
+                    sec.classList.add('hidden');
+                    if (deskBtn) deskBtn.className = 'tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all';
+                    if (mobBtn) mobBtn.className = 'tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400';
+                }
+            });
+            if (tabName === 'progress' && typeof renderWeightChart === 'function') {
+                setTimeout(renderWeightChart, 50);
+            }
+        };
+
+        document.querySelectorAll('.tab-nav-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetTab = this.getAttribute('data-tab');
+                if (targetTab) window.switchTab(targetTab);
+            });
+        });
+
+        // ==========================================
         // 1. STATE & STORAGE MANAGEMENT
         // ==========================================
         const STORAGE_KEY = 'fithome_ai_offline_v3';
         const API_KEY_STORAGE = 'fithome_gemini_api_key';
-        // Danh sách model chuẩn xác của Google Gemini (tự động chuyển dự phòng khi quá tải)
+        // Danh sách model tự động dự phòng chuẩn xác của Google Gemini
         const GEMINI_FALLBACK_MODELS = [
             'gemini-3-flash-preview',
             'gemini-2.5-flash',
@@ -1010,20 +1042,8 @@
         }
 
         function switchTab(tabName) {
-            ['workout', 'diet', 'progress'].forEach(t => {
-                const sec = document.getElementById(`tab-${t}`);
-                const deskBtn = document.getElementById(`nav-desk-${t}`);
-                const mobBtn = document.getElementById(`nav-mob-${t}`);
-                if (!sec) return;
-                if (t === tabName) {
-                    sec.classList.remove('hidden');
-                    if (deskBtn) deskBtn.className = 'cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950 flex items-center gap-1.5';
-                    if (mobBtn) mobBtn.className = 'cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10';
-                } else {
-                    sec.classList.add('hidden');
-                    if (deskBtn) deskBtn.className = 'cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all flex items-center gap-1.5';
-                    if (mobBtn) mobBtn.className = 'cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400';
-                }
+            window.switchTab(tabName);
+        }
             });
             if (tabName === 'progress') {
                 setTimeout(renderWeightChart, 50);
@@ -2087,8 +2107,8 @@
                     const result = await response.json();
                     const rawText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
                     if (!rawText) throw new Error('Không nhận được dữ liệu phân tích từ AI.');
-                    const cleanJson = rawText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-                    return JSON.parse(cleanJson);
+                    const cleanedJson = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+                    return JSON.parse(cleanedJson);
                 } catch (err) {
                     lastError = err;
                     const isNetworkOrBusy = /high demand|overloaded|429|503|404|failed to fetch|not found/i.test(err.message || '');
