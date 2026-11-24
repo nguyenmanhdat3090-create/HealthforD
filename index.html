@@ -1044,12 +1044,8 @@
         function switchTab(tabName) {
             window.switchTab(tabName);
         }
-            });
-            if (tabName === 'progress') {
-                setTimeout(renderWeightChart, 50);
-            }
-        }
-        window.switchTab = switchTab;
+
+        // ==========================================
         // 3. BODY METRICS & DASHBOARD CALCULATIONS
         // ==========================================
         function calculateMetrics() {
