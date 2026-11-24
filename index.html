@@ -14,6 +14,31 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
+        function switchTab(tabName) {
+            var tabs = ['workout', 'diet', 'progress'];
+            for (var i = 0; i < tabs.length; i++) {
+                var t = tabs[i];
+                var sec = document.getElementById('tab-' + t);
+                var deskBtn = document.getElementById('nav-desk-' + t);
+                var mobBtn = document.getElementById('nav-mob-' + t);
+                if (!sec) continue;
+                if (t === tabName) {
+                    sec.classList.remove('hidden');
+                    if (deskBtn) deskBtn.className = 'tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950';
+                    if (mobBtn) mobBtn.className = 'tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10';
+                } else {
+                    sec.classList.add('hidden');
+                    if (deskBtn) deskBtn.className = 'tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all';
+                    if (mobBtn) mobBtn.className = 'tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400';
+                }
+            }
+            if (tabName === 'progress' && typeof window.renderWeightChart === 'function') {
+                setTimeout(window.renderWeightChart, 50);
+            }
+        }
+        window.switchTab = switchTab;
+    </script>
+    <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
@@ -109,13 +134,13 @@
 
                 <!-- Desktop Navigation -->
                 <nav class="hidden md:flex items-center gap-1.5 bg-dark-900 p-1 rounded-xl border border-slate-800 shrink-0">
-                    <button type="button" data-tab="workout" id="nav-desk-workout" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950">
+                    <button type="button" onclick="switchTab('workout')" data-tab="workout" id="nav-desk-workout" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950">
                         <i class="fa-solid fa-dumbbell mr-1.5 pointer-events-none"></i>Tập luyện
                     </button>
-                    <button type="button" data-tab="diet" id="nav-desk-diet" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all">
+                    <button type="button" onclick="switchTab('diet')" data-tab="diet" id="nav-desk-diet" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all">
                         <i class="fa-solid fa-utensils mr-1.5 pointer-events-none"></i>Bếp & Dinh dưỡng
                     </button>
-                    <button type="button" data-tab="progress" id="nav-desk-progress" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all">
+                    <button type="button" onclick="switchTab('progress')" data-tab="progress" id="nav-desk-progress" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all">
                         <i class="fa-solid fa-chart-line mr-1.5 pointer-events-none"></i>Tiến độ & Hồ sơ
                     </button>
                 </nav>
@@ -847,15 +872,15 @@
     <!-- Mobile Bottom Navigation -->
     <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-dark-950/95 backdrop-blur-lg border-t border-slate-800 px-2 py-2">
         <div class="grid grid-cols-3 gap-1 max-w-md mx-auto">
-            <button type="button" data-tab="workout" id="nav-mob-workout" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10">
+            <button type="button" onclick="switchTab('workout')" data-tab="workout" id="nav-mob-workout" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10">
                 <i class="fa-solid fa-dumbbell text-base mb-0.5 pointer-events-none"></i>
                 <span class="text-[11px] font-bold pointer-events-none">Tập luyện</span>
             </button>
-            <button type="button" data-tab="diet" id="nav-mob-diet" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
+            <button type="button" onclick="switchTab('diet')" data-tab="diet" id="nav-mob-diet" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
                 <i class="fa-solid fa-utensils text-base mb-0.5 pointer-events-none"></i>
                 <span class="text-[11px] font-semibold pointer-events-none">Bếp & Ăn</span>
             </button>
-            <button type="button" data-tab="progress" id="nav-mob-progress" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
+            <button type="button" onclick="switchTab('progress')" data-tab="progress" id="nav-mob-progress" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
                 <i class="fa-solid fa-chart-line text-base mb-0.5 pointer-events-none"></i>
                 <span class="text-[11px] font-semibold pointer-events-none">Tiến độ</span>
             </button>
@@ -866,27 +891,6 @@
         // ==========================================
         // 0. SAFE TAB NAVIGATION BINDING
         // ==========================================
-        window.switchTab = function(tabName) {
-            ['workout', 'diet', 'progress'].forEach(t => {
-                const sec = document.getElementById(`tab-${t}`);
-                const deskBtn = document.getElementById(`nav-desk-${t}`);
-                const mobBtn = document.getElementById(`nav-mob-${t}`);
-                if (!sec) return;
-                if (t === tabName) {
-                    sec.classList.remove('hidden');
-                    if (deskBtn) deskBtn.className = 'tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950';
-                    if (mobBtn) mobBtn.className = 'tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10';
-                } else {
-                    sec.classList.add('hidden');
-                    if (deskBtn) deskBtn.className = 'tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all';
-                    if (mobBtn) mobBtn.className = 'tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400';
-                }
-            });
-            if (tabName === 'progress' && typeof renderWeightChart === 'function') {
-                setTimeout(renderWeightChart, 50);
-            }
-        };
-
         document.querySelectorAll('.tab-nav-btn').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -1039,10 +1043,6 @@
                 toast.style.transform = 'translateY(-6px)';
                 setTimeout(() => toast.remove(), 300);
             }, 4200);
-        }
-
-        function switchTab(tabName) {
-            window.switchTab(tabName);
         }
 
         // ==========================================
