@@ -13,6 +13,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Firebase Compat SDKs for zero-module-error GitHub Pages deployment -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script>
         function switchTab(tabName) {
             var tabs = ['workout', 'diet', 'progress'];
@@ -150,53 +154,53 @@
 
                 <!-- Desktop Navigation -->
                 <nav class="relative z-50 hidden md:flex items-center gap-1.5 bg-dark-900 p-1 rounded-xl border border-slate-800 shrink-0">
-                    <button type="button" onclick="switchTab('workout')" data-tab="workout" id="nav-desk-workout" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950">
+                    <button type="button" onclick="window.switchTab('workout')" data-tab="workout" id="nav-desk-workout" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950">
                         <i class="fa-solid fa-dumbbell mr-1.5 pointer-events-none"></i>Tập luyện
                     </button>
-                    <button type="button" onclick="switchTab('diet')" data-tab="diet" id="nav-desk-diet" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all">
+                    <button type="button" onclick="window.switchTab('diet')" data-tab="diet" id="nav-desk-diet" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all">
                         <i class="fa-solid fa-utensils mr-1.5 pointer-events-none"></i>Bếp & Dinh dưỡng
                     </button>
-                    <button type="button" onclick="switchTab('progress')" data-tab="progress" id="nav-desk-progress" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all">
+                    <button type="button" onclick="window.switchTab('progress')" data-tab="progress" id="nav-desk-progress" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all">
                         <i class="fa-solid fa-chart-line mr-1.5 pointer-events-none"></i>Tiến độ & Hồ sơ
                     </button>
                 </nav>
             </div>
 
-            <!-- Daily Calorie & Protein Balance Bar -->
-            <div class="bg-dark-900 border border-slate-800 rounded-2xl px-3.5 py-2 flex items-center justify-between gap-3 sm:gap-5">
-                <div class="flex items-center gap-2.5 sm:gap-3.5 text-xs">
-                    <div>
-                        <span class="text-slate-400 block text-[11px]">Mục tiêu</span>
-                        <span class="font-bold text-white text-sm" id="dash-target-cal">1,850</span>
+            <!-- Cloud Auth & Calorie Balance Wrapper -->
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <!-- Google Gmail Sync Bar -->
+                <div id="header-auth-bar" class="bg-dark-900 border border-slate-800 rounded-2xl px-3 py-2 flex items-center justify-between gap-2.5">
+                    <!-- Signed Out View -->
+                    <div id="auth-signed-out-view" class="flex items-center justify-between w-full gap-2">
+                        <span class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-hard-drive text-slate-500"></i> Lưu cục bộ trên máy
+                        </span>
+                        <button type="button" onclick="signInWithGoogle()" class="bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all shadow-sm shrink-0">
+                            <i class="fa-brands fa-google text-rose-500"></i> Đăng nhập Gmail
+                        </button>
                     </div>
-                    <span class="text-slate-600 font-bold">-</span>
-                    <div>
-                        <span class="text-slate-400 block text-[11px]">Đã ăn</span>
-                        <span class="font-bold text-orange-400 text-sm" id="dash-food-cal">0</span>
-                    </div>
-                    <span class="text-slate-600 font-bold">+</span>
-                    <div>
-                        <span class="text-slate-400 block text-[11px]">Đã đốt</span>
-                        <span class="font-bold text-emerald-400 text-sm" id="dash-burned-cal">0</span>
+                    <!-- Signed In View -->
+                    <div id="auth-signed-in-view" class="hidden flex items-center justify-between w-full gap-2.5">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <img id="user-google-avatar" src="" alt="Avatar" class="w-7 h-7 rounded-full border border-emerald-500/50 object-cover shrink-0">
+                            <div class="min-w-0">
+                                <p id="user-google-name" class="text-xs font-bold text-white truncate max-w-[110px]">Người dùng</p>
+                                <span id="cloud-sync-status-badge" class="text-[10px] text-emerald-400 font-semibold block leading-none">☁️ Đã đồng bộ</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 shrink-0">
+                            <button type="button" onclick="manualSyncCloudNow()" class="p-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 text-emerald-400 text-xs" title="Đồng bộ ngay">
+                                <i class="fa-solid fa-rotate"></i>
+                            </button>
+                            <button type="button" onclick="signOutGoogle()" class="p-1.5 rounded-lg bg-dark-800 hover:bg-rose-950 text-slate-400 hover:text-rose-300 text-xs" title="Đăng xuất">
+                                <i class="fa-solid fa-right-from-bracket"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div class="h-8 w-[1px] bg-slate-800"></div>
-                <div class="flex items-center gap-4">
-                    <div class="hidden sm:block text-right">
-                        <span class="text-[11px] text-slate-400 block">Đạm (Protein)</span>
-                        <span class="font-bold text-xs text-sky-400" id="dash-protein-progress">0 / 142g</span>
-                    </div>
-                    <div class="text-right">
-                        <span class="text-[11px] text-slate-400 block">Còn lại hôm nay</span>
-                        <span class="font-extrabold text-sm sm:text-base text-emerald-400" id="dash-remaining-cal">1,850 kcal</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </header>
 
-    <!-- Main Workspace -->
-    <main class="flex-1 max-w-5xl w-full mx-auto px-4 pt-5">
+                <!-- Daily Calorie & Protein Balance Bar -->
+                <div class="bg-dark-900 border border-slate-800 rounded-2xl px-3.5 py-2 flex items-center justify-between gap-3 sm:gap-5">
 
         <!-- ==================== TAB 1: WORKOUT ==================== -->
         <section id="tab-workout" class="space-y-5">
@@ -881,6 +885,67 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Cloud Synchronization & Firebase Configuration Card -->
+            <div class="surface-card rounded-2xl p-4 sm:p-5 space-y-4 border-sky-500/30">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h3 class="font-bold text-base text-white flex items-center gap-2">
+                            <i class="fa-solid fa-cloud text-sky-400"></i> Đồng bộ đám mây qua Gmail (Không lo mất máy)
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Đăng nhập cùng 1 Gmail trên iPhone và Laptop để tự động sao lưu toàn bộ cân nặng, bữa ăn & API Key</p>
+                    </div>
+                    <button type="button" onclick="toggleFirebaseConfigPanel()" class="px-3 py-1.5 rounded-xl bg-dark-950 hover:bg-dark-800 text-sky-400 border border-sky-500/30 text-xs font-bold flex items-center gap-1.5">
+                        <i class="fa-solid fa-gear"></i> Cấu hình Firebase
+                    </button>
+                </div>
+
+                <!-- Account Status Banner inside Profile Tab -->
+                <div class="bg-dark-950 p-3.5 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div id="profile-auth-info" class="text-xs text-slate-300">
+                        Chưa đăng nhập Gmail. Dữ liệu hiện chỉ lưu trên trình duyệt của thiết bị này.
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button type="button" id="profile-btn-login" onclick="signInWithGoogle()" class="bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 transition-all">
+                            <i class="fa-brands fa-google text-rose-500"></i> Đăng nhập bằng Gmail
+                        </button>
+                        <button type="button" id="profile-btn-sync" onclick="manualSyncCloudNow()" class="hidden bg-sky-500 hover:bg-sky-400 text-dark-950 font-extrabold text-xs px-3.5 py-2 rounded-xl transition-all">
+                            <i class="fa-solid fa-cloud-arrow-up mr-1"></i> Đồng bộ ngay
+                        </button>
+                        <button type="button" id="profile-btn-logout" onclick="signOutGoogle()" class="hidden bg-dark-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 font-semibold text-xs px-3.5 py-2 rounded-xl border border-slate-700 transition-all">
+                            Đăng xuất
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Collapsible Firebase Config Input Panel -->
+                <div id="firebase-config-panel" class="hidden bg-dark-950 p-4 rounded-xl border border-sky-500/30 space-y-3">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="text-xs text-slate-300 space-y-1">
+                            <p class="font-bold text-sky-400">Cách gắn Firebase của bạn (1 lần duy nhất):</p>
+                            <p class="text-slate-400">Copy đoạn mã <code class="text-emerald-400">firebaseConfig = { ... }</code> từ Project Settings trên Firebase Console dán vào ô bên dưới (hoặc dán thẳng vào biến <code class="text-emerald-400">DEFAULT_FIREBASE_CONFIG</code> trong file <code class="text-emerald-400">index.html</code>).</p>
+                        </div>
+                        <button type="button" onclick="toggleFirebaseConfigPanel()" class="text-slate-500 hover:text-white p-1"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <textarea id="firebase-config-textarea" rows="5" placeholder='Dán đoạn cấu hình Firebase vào đây, ví dụ:
+{
+  "apiKey": "AIzaSy...",
+  "authDomain": "fithome-xxxx.firebaseapp.com",
+  "projectId": "fithome-xxxx",
+  "storageBucket": "fithome-xxxx.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:123456789:web:abcdef"
+}' class="w-full bg-dark-900 border border-slate-700 rounded-xl p-3 font-mono text-xs text-emerald-300 placeholder-slate-600 focus:outline-none focus:border-sky-500"></textarea>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="saveFirebaseConfigFromUI()" class="bg-sky-500 hover:bg-sky-400 text-dark-950 font-extrabold px-4 py-2 rounded-xl text-xs transition-all">
+                            Lưu cấu hình & Kích hoạt đăng nhập Gmail
+                        </button>
+                        <button type="button" onclick="clearFirebaseConfigFromUI()" class="bg-dark-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 font-semibold px-3.5 py-2 rounded-xl text-xs border border-slate-700 transition-all">
+                            Xóa cấu hình
+                        </button>
+                    </div>
+                </div>
+            </div>
         </section>
 
     </main>
@@ -888,15 +953,15 @@
     <!-- Mobile Bottom Navigation -->
     <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-dark-950/95 backdrop-blur-lg border-t border-slate-800 px-2 py-2">
         <div class="grid grid-cols-3 gap-1 max-w-md mx-auto">
-            <button type="button" onclick="switchTab('workout')" data-tab="workout" id="nav-mob-workout" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10">
+            <button type="button" onclick="window.switchTab('workout')" data-tab="workout" id="nav-mob-workout" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10">
                 <i class="fa-solid fa-dumbbell text-base mb-0.5 pointer-events-none"></i>
                 <span class="text-[11px] font-bold pointer-events-none">Tập luyện</span>
             </button>
-            <button type="button" onclick="switchTab('diet')" data-tab="diet" id="nav-mob-diet" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
+            <button type="button" onclick="window.switchTab('diet')" data-tab="diet" id="nav-mob-diet" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
                 <i class="fa-solid fa-utensils text-base mb-0.5 pointer-events-none"></i>
                 <span class="text-[11px] font-semibold pointer-events-none">Bếp & Ăn</span>
             </button>
-            <button type="button" onclick="switchTab('progress')" data-tab="progress" id="nav-mob-progress" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
+            <button type="button" onclick="window.switchTab('progress')" data-tab="progress" id="nav-mob-progress" class="tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
                 <i class="fa-solid fa-chart-line text-base mb-0.5 pointer-events-none"></i>
                 <span class="text-[11px] font-semibold pointer-events-none">Tiến độ</span>
             </button>
@@ -905,7 +970,7 @@
 
     <script>
         // ==========================================
-        // 0. SAFE TAB NAVIGATION BINDING
+        // 0. SAFE TAB NAVIGATION & FIREBASE CONFIG
         // ==========================================
         document.querySelectorAll('.tab-nav-btn').forEach(btn => {
             btn.addEventListener('click', function(e) {
@@ -914,6 +979,250 @@
                 if (targetTab) window.switchTab(targetTab);
             });
         });
+
+        // Chủ sở hữu có thể dán trực tiếp firebaseConfig vào đây để dùng chung trên mọi thiết bị mà không cần nhập lại:
+        const DEFAULT_FIREBASE_CONFIG = null;
+        /* Ví dụ khi dán trực tiếp vào code:
+        const DEFAULT_FIREBASE_CONFIG = {
+            apiKey: "AIzaSy...",
+            authDomain: "ten-du-an.firebaseapp.com",
+            projectId: "ten-du-an",
+            storageBucket: "ten-du-an.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef"
+        };
+        */
+
+        const FIREBASE_CFG_STORAGE = 'fithome_firebase_config_json';
+        let firebaseAuthInstance = null;
+        let firebaseDbInstance = null;
+        let currentCloudUser = null;
+        let cloudSyncTimer = null;
+
+        function getActiveFirebaseConfig() {
+            if (DEFAULT_FIREBASE_CONFIG && DEFAULT_FIREBASE_CONFIG.apiKey) {
+                return DEFAULT_FIREBASE_CONFIG;
+            }
+            try {
+                const raw = localStorage.getItem(FIREBASE_CFG_STORAGE);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                return (parsed && parsed.apiKey && parsed.projectId) ? parsed : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function toggleFirebaseConfigPanel() {
+            const panel = document.getElementById('firebase-config-panel');
+            panel.classList.toggle('hidden');
+            const cfg = getActiveFirebaseConfig();
+            if (cfg && !panel.classList.contains('hidden')) {
+                document.getElementById('firebase-config-textarea').value = JSON.stringify(cfg, null, 2);
+            }
+        }
+
+        function saveFirebaseConfigFromUI() {
+            let rawText = document.getElementById('firebase-config-textarea').value.trim();
+            if (!rawText) {
+                showToast('Vui lòng dán đoạn cấu hình Firebase trước khi lưu!', 'warning');
+                return;
+            }
+            try {
+                // Hỗ trợ cả định dạng JS object literal (không có ngoặc kép quanh key) lẫn JSON chuẩn
+                rawText = rawText
+                    .replace(/^(const|let|var)\s+\w+\s*=\s*/i, '')
+                    .replace(/;\s*$/, '');
+                const parsed = Function('"use strict";return (' + rawText + ')')();
+                if (!parsed || !parsed.apiKey || !parsed.projectId) {
+                    throw new Error('Thiếu apiKey hoặc projectId');
+                }
+                localStorage.setItem(FIREBASE_CFG_STORAGE, JSON.stringify(parsed));
+                document.getElementById('firebase-config-panel').classList.add('hidden');
+                showToast('Đã lưu cấu hình Firebase! Đang khởi tạo kết nối Gmail...');
+                initFirebaseCloud();
+            } catch (err) {
+                showToast('Cấu hình Firebase chưa đúng định dạng. Hãy copy trọn vẹn khối { apiKey: "...", ... }!', 'warning');
+            }
+        }
+
+        function clearFirebaseConfigFromUI() {
+            localStorage.removeItem(FIREBASE_CFG_STORAGE);
+            document.getElementById('firebase-config-textarea').value = '';
+            showToast('Đã xóa cấu hình Firebase khỏi trình duyệt này.', 'warning');
+        }
+
+        function initFirebaseCloud() {
+            const cfg = getActiveFirebaseConfig();
+            if (!cfg || typeof firebase === 'undefined') {
+                updateAuthUI(null);
+                return;
+            }
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(cfg);
+                }
+                firebaseAuthInstance = firebase.auth();
+                firebaseDbInstance = firebase.firestore();
+
+                firebaseAuthInstance.onAuthStateChanged(async (user) => {
+                    currentCloudUser = user;
+                    updateAuthUI(user);
+                    if (user) {
+                        await pullOrInitCloudState(user);
+                    }
+                });
+            } catch (err) {
+                console.error('Firebase init error:', err);
+                showToast('Không thể khởi tạo Firebase: ' + err.message, 'warning');
+            }
+        }
+
+        function updateAuthUI(user) {
+            const outView = document.getElementById('auth-signed-out-view');
+            const inView = document.getElementById('auth-signed-in-view');
+            const profInfo = document.getElementById('profile-auth-info');
+            const profLoginBtn = document.getElementById('profile-btn-login');
+            const profSyncBtn = document.getElementById('profile-btn-sync');
+            const profLogoutBtn = document.getElementById('profile-btn-logout');
+
+            if (user) {
+                outView.classList.add('hidden');
+                inView.classList.remove('hidden');
+                document.getElementById('user-google-name').innerText = user.displayName || user.email || 'Tài khoản Gmail';
+                const avatarEl = document.getElementById('user-google-avatar');
+                if (user.photoURL) {
+                    avatarEl.src = user.photoURL;
+                    avatarEl.classList.remove('hidden');
+                } else {
+                    avatarEl.classList.add('hidden');
+                }
+
+                if (profInfo) {
+                    profInfo.innerHTML = `<span class="text-emerald-400 font-bold">☁️ Đã kết nối Gmail:</span> <strong class="text-white">${user.email}</strong>. Mọi dữ liệu của bạn được tự động sao lưu lên đám mây.`;
+                }
+                if (profLoginBtn) profLoginBtn.classList.add('hidden');
+                if (profSyncBtn) profSyncBtn.classList.remove('hidden');
+                if (profLogoutBtn) profLogoutBtn.classList.remove('hidden');
+            } else {
+                outView.classList.remove('hidden');
+                inView.classList.add('hidden');
+                if (profInfo) {
+                    profInfo.innerHTML = `Chưa đăng nhập Gmail. Dữ liệu hiện chỉ lưu trên trình duyệt của thiết bị này.`;
+                }
+                if (profLoginBtn) profLoginBtn.classList.remove('hidden');
+                if (profSyncBtn) profSyncBtn.classList.add('hidden');
+                if (profLogoutBtn) profLogoutBtn.classList.add('hidden');
+            }
+        }
+
+        async function signInWithGoogle() {
+            const cfg = getActiveFirebaseConfig();
+            if (!cfg) {
+                window.switchTab('progress');
+                const panel = document.getElementById('firebase-config-panel');
+                panel.classList.remove('hidden');
+                panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                showToast('Bạn hãy dán cấu hình Firebase 1 lần duy nhất để bật đăng nhập Gmail nhé!', 'warning');
+                return;
+            }
+            if (!firebaseAuthInstance) {
+                initFirebaseCloud();
+            }
+            try {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                provider.setCustomParameters({ prompt: 'select_account' });
+                await firebaseAuthInstance.signInWithPopup(provider);
+                showToast('Đăng nhập Gmail thành công! Đang đồng bộ dữ liệu...');
+            } catch (err) {
+                console.error('Google Sign-In error:', err);
+                if (err.code === 'auth/unauthorized-domain') {
+                    showToast('Lỗi tên miền: Bạn cần thêm "nguyenmanhdat3090-create.github.io" vào Authorized domains trong Firebase Authentication!', 'warning');
+                } else if (err.code !== 'auth/popup-closed-by-user') {
+                    showToast('Lỗi đăng nhập Gmail: ' + err.message, 'warning');
+                }
+            }
+        }
+
+        async function signOutGoogle() {
+            if (!firebaseAuthInstance) return;
+            try {
+                await firebaseAuthInstance.signOut();
+                showToast('Đã đăng xuất khỏi tài khoản Gmail.');
+            } catch (err) {
+                showToast('Lỗi khi đăng xuất: ' + err.message, 'warning');
+            }
+        }
+
+        async function pullOrInitCloudState(user) {
+            if (!firebaseDbInstance || !user) return;
+            const badge = document.getElementById('cloud-sync-status-badge');
+            if (badge) badge.innerText = '⏳ Đang tải dữ liệu...';
+            try {
+                const docRef = firebaseDbInstance.collection('users').doc(user.uid).collection('appData').doc('mainState');
+                const snap = await docRef.get();
+                if (snap.exists) {
+                    const cloudData = snap.data();
+                    if (cloudData && cloudData.stateJson) {
+                        const parsedCloud = JSON.parse(cloudData.stateJson);
+                        const today = new Date().toISOString().split('T')[0];
+                        appState = {
+                            ...JSON.parse(JSON.stringify(defaultState)),
+                            ...parsedCloud,
+                            profile: { ...defaultState.profile, ...(parsedCloud.profile || {}) },
+                            equipment: { ...defaultState.equipment, ...(parsedCloud.equipment || {}) },
+                            workoutConfig: { ...defaultState.workoutConfig, ...(parsedCloud.workoutConfig || {}) },
+                            todayLog: (parsedCloud.todayLog && parsedCloud.todayLog.dateStr === today)
+                                ? { ...defaultState.todayLog, ...parsedCloud.todayLog }
+                                : { ...defaultState.todayLog, dateStr: today }
+                        };
+                        if (cloudData.geminiApiKey && !localStorage.getItem(API_KEY_STORAGE)) {
+                            localStorage.setItem(API_KEY_STORAGE, cloudData.geminiApiKey);
+                        }
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+                        initUI();
+                        if (badge) badge.innerText = '☁️ Đã đồng bộ';
+                        showToast('Đã tải toàn bộ dữ liệu từ tài khoản Gmail của bạn!');
+                    }
+                } else {
+                    // Lần đầu đăng nhập: đẩy dữ liệu hiện có trên máy lên đám mây
+                    await pushStateToCloud(user, true);
+                }
+            } catch (err) {
+                console.error('Firestore pull error:', err);
+                if (badge) badge.innerText = '⚠️ Lỗi đồng bộ';
+                showToast('Chưa thể đọc dữ liệu đám mây (Kiểm tra Firestore Rules): ' + err.message, 'warning');
+            }
+        }
+
+        async function pushStateToCloud(user = currentCloudUser, silent = false) {
+            if (!firebaseDbInstance || !user) return;
+            const badge = document.getElementById('cloud-sync-status-badge');
+            if (badge) badge.innerText = '🔄 Đang lưu...';
+            try {
+                const docRef = firebaseDbInstance.collection('users').doc(user.uid).collection('appData').doc('mainState');
+                await docRef.set({
+                    stateJson: JSON.stringify(appState),
+                    geminiApiKey: localStorage.getItem(API_KEY_STORAGE) || '',
+                    email: user.email || '',
+                    updatedAt: new Date().toISOString()
+                });
+                if (badge) badge.innerText = '☁️ Đã đồng bộ';
+                if (!silent) showToast('☁️ Đã đồng bộ dữ liệu lên tài khoản Gmail!');
+            } catch (err) {
+                console.error('Firestore push error:', err);
+                if (badge) badge.innerText = '⚠️ Lỗi lưu mây';
+                if (!silent) showToast('Lỗi đồng bộ đám mây: ' + err.message, 'warning');
+            }
+        }
+
+        function manualSyncCloudNow() {
+            if (!currentCloudUser) {
+                signInWithGoogle();
+                return;
+            }
+            pushStateToCloud(currentCloudUser, false);
+        }
 
         // ==========================================
         // 1. STATE & STORAGE MANAGEMENT
@@ -1005,6 +1314,15 @@
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
             } catch (e) {
                 console.warn('Không thể lưu dữ liệu vào localStorage:', e);
+            }
+            // Tự động đồng bộ lên Firebase Cloud sau 1.5s nếu đã đăng nhập Gmail
+            if (currentCloudUser && firebaseDbInstance) {
+                clearTimeout(cloudSyncTimer);
+                const badge = document.getElementById('cloud-sync-status-badge');
+                if (badge) badge.innerText = '🔄 Chờ đồng bộ...';
+                cloudSyncTimer = setTimeout(() => {
+                    pushStateToCloud(currentCloudUser, true);
+                }, 1500);
             }
         }
 
@@ -2645,6 +2963,7 @@ ${NUTRITION_JSON_TEMPLATE}`;
 
         window.onload = function () {
             initUI();
+            initFirebaseCloud();
             window.addEventListener('resize', () => {
                 if (!document.getElementById('tab-progress').classList.contains('hidden')) {
                     renderWeightChart();
