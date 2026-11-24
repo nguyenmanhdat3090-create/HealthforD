@@ -24,12 +24,28 @@
                 if (!sec) continue;
                 if (t === tabName) {
                     sec.classList.remove('hidden');
-                    if (deskBtn) deskBtn.className = 'tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950';
-                    if (mobBtn) mobBtn.className = 'tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10';
+                    sec.style.display = 'block';
+                    if (deskBtn) {
+                        deskBtn.className = 'tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950';
+                        deskBtn.style.backgroundColor = '#10b981';
+                        deskBtn.style.color = '#0b1114';
+                    }
+                    if (mobBtn) {
+                        mobBtn.className = 'tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/10';
+                        mobBtn.style.color = '#34d399';
+                    }
                 } else {
                     sec.classList.add('hidden');
-                    if (deskBtn) deskBtn.className = 'tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all';
-                    if (mobBtn) mobBtn.className = 'tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400';
+                    sec.style.display = 'none';
+                    if (deskBtn) {
+                        deskBtn.className = 'tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-all';
+                        deskBtn.style.backgroundColor = 'transparent';
+                        deskBtn.style.color = '#94a3b8';
+                    }
+                    if (mobBtn) {
+                        mobBtn.className = 'tab-nav-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400';
+                        mobBtn.style.color = '#94a3b8';
+                    }
                 }
             }
             if (tabName === 'progress' && typeof window.renderWeightChart === 'function') {
@@ -133,7 +149,7 @@
                 </div>
 
                 <!-- Desktop Navigation -->
-                <nav class="hidden md:flex items-center gap-1.5 bg-dark-900 p-1 rounded-xl border border-slate-800 shrink-0">
+                <nav class="relative z-50 hidden md:flex items-center gap-1.5 bg-dark-900 p-1 rounded-xl border border-slate-800 shrink-0">
                     <button type="button" onclick="switchTab('workout')" data-tab="workout" id="nav-desk-workout" class="tab-nav-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all bg-emerald-500 text-dark-950">
                         <i class="fa-solid fa-dumbbell mr-1.5 pointer-events-none"></i>Tập luyện
                     </button>
@@ -912,17 +928,7 @@
             'gemini-2.0-flash'
         ];
 
-        const NUTRITION_JSON_TEMPLATE = `{
-  "meal_name": "Tên tóm tắt bữa ăn",
-  "items": [
-    { "name": "Tên món", "portion": "Định lượng (vd: 1 bát, 150g)", "calories": 200, "protein": 15, "carbs": 20, "fat": 5 }
-  ],
-  "total_calories": 200,
-  "total_protein": 15,
-  "total_carbs": 20,
-  "total_fat": 5,
-  "advice": "Lời khuyên ngắn gọn giúp giảm mỡ hiệu quả"
-}`;
+        const NUTRITION_JSON_TEMPLATE = '{"meal_name":"Tên bữa ăn","items":[{"name":"Tên món","portion":"Định lượng","calories":200,"protein":15,"carbs":20,"fat":5}],"total_calories":200,"total_protein":15,"total_carbs":20,"total_fat":5,"advice":"Lời khuyên giảm mỡ"}';
 
         const defaultState = {
             profile: {
