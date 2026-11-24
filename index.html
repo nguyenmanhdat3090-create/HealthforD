@@ -504,22 +504,22 @@
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h2 class="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
-                            ☁️ Đồng bộ đám mây & Đăng nhập Gmail (Firebase)
+                            ☁️ Đồng bộ đám mây & Đăng nhập Gmail
                         </h2>
-                        <p class="text-xs text-slate-400 mt-0.5">Đăng nhập cùng 1 Gmail trên điện thoại và laptop để tự động lưu dữ liệu, không lo mất máy</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Đăng nhập cùng 1 Gmail trên điện thoại và laptop để tự động lưu dữ liệu riêng tư, không lo mất máy</p>
                     </div>
-                    <button type="button" onclick="toggleFirebaseConfigBox()" class="px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-sky-400 border border-sky-500/30 text-xs font-bold transition-all">
-                        ⚙️ Cấu hình Firebase
-                    </button>
                 </div>
 
                 <!-- Status Banner & Buttons -->
                 <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div class="flex items-center gap-3">
                         <img id="progress-user-avatar" src="" alt="Avatar" class="hidden w-10 h-10 rounded-full border border-emerald-500/50 object-cover shrink-0">
-                        <p id="cloud-status-text" class="text-xs sm:text-sm text-slate-300 font-medium">
-                            Chưa đăng nhập Gmail — Dữ liệu lưu trên máy này
-                        </p>
+                        <div>
+                            <p id="cloud-user-name" class="hidden text-sm font-bold text-white"></p>
+                            <p id="cloud-status-text" class="text-xs sm:text-sm text-slate-300 font-medium">
+                                Chưa đăng nhập Gmail — Dữ liệu hiện lưu trên thiết bị này
+                            </p>
+                        </div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 shrink-0">
                         <button type="button" id="btn-google-signin" onclick="signInWithGmail()" class="bg-white hover:bg-slate-100 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-sm transition-all">
@@ -536,26 +536,6 @@
                         </button>
                         <button type="button" id="btn-google-signout" onclick="signOutFromGmail()" class="hidden bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 transition-all">
                             Đăng xuất
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Collapsible Firebase Config Panel -->
-                <div id="firebase-config-box" class="hidden bg-slate-950 border border-sky-500/30 rounded-xl p-4 space-y-3">
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="text-xs text-slate-300 space-y-1">
-                            <p class="font-bold text-sky-400">Dán cấu hình Firebase của bạn (1 lần duy nhất):</p>
-                            <p class="text-slate-400">Nhớ thêm tên miền <code class="text-emerald-400">nguyenmanhdat3090-create.github.io</code> vào mục <strong>Authentication → Settings → Authorized domains</strong> trên Firebase Console.</p>
-                        </div>
-                        <button type="button" onclick="toggleFirebaseConfigBox()" class="text-slate-400 hover:text-white font-bold px-2">✕</button>
-                    </div>
-                    <textarea id="firebase-config-input" rows="5" placeholder='Dán đoạn firebaseConfig = { ... } từ Firebase Project Settings vào đây...' class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 font-mono text-xs text-emerald-300 placeholder-slate-500 focus:outline-none focus:border-sky-500"></textarea>
-                    <div class="flex flex-wrap gap-2">
-                        <button type="button" onclick="saveFirebaseConfig()" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold px-4 py-2 rounded-xl text-xs transition-all">
-                            Lưu cấu hình Firebase
-                        </button>
-                        <button type="button" onclick="removeFirebaseConfig()" class="bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 font-semibold px-3.5 py-2 rounded-xl text-xs border border-slate-700 transition-all">
-                            Xóa cấu hình
                         </button>
                     </div>
                 </div>
@@ -680,955 +660,30 @@
 
     <script>
         // ==========================================================
-        // 1. CONSTANTS & DEFAULT STATE
+        // 1. CONSTANTS & DEFAULT STATE (HARDCODED FIREBASE CONFIG)
         // ==========================================================
-        const DEFAULT_FIREBASE_CONFIG = null;
+        const DEFAULT_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyCVRJoUY4KiyO5C_Kc7gRcAIHY51ppsQ8s",
+            authDomain: "fithome-7b19a.firebaseapp.com",
+            projectId: "fithome-7b19a",
+            storageBucket: "fithome-7b19a.firebasestorage.app",
+            messagingSenderId: "698950998679",
+            appId: "1:698950998679:web:e8cb3a1f0a399a6399e7d2",
+            measurementId: "G-LKCMMZW8NM"
+        };
         const STORAGE_KEY = 'fithome_ai_state_v4';
         const API_KEY_STORAGE = 'fithome_gemini_api_key';
-        const FIREBASE_CFG_STORAGE = 'fithome_firebase_cfg';
-
-        const GEMINI_FALLBACK_MODELS = [
-            'gemini-3-flash-preview',
-            'gemini-2.5-flash',
-            'gemini-2.5-flash-lite',
-            'gemini-2.0-flash'
-        ];
-
-        const defaultState = {
-            profile: {
-                startWeight: 71.0,
-                currentWeight: 71.0,
-                targetWeight: 66.0,
-                height: 172,
-                age: 24,
-                dailyCalorieTarget: 1850,
-                dailyProteinTarget: 142
-            },
-            workout: {
-                duration: 30,
-                intensity: 'standard',
-                awayMode: false,
-                equipment: { mat: true, dumbbell: true, pullup: true },
-                plan: []
-            },
-            today: {
-                dateStr: new Date().toISOString().split('T')[0],
-                foods: [],
-                workoutBurned: 0,
-                activityBurned: 0,
-                steps: 0,
-                floors: 0,
-                syncSignature: ''
-            },
-            weightHistory: [
-                { date: 'Bắt đầu', weight: 71.0 }
-            ]
-        };
-
-        function loadAppState() {
-            try {
-                const raw = localStorage.getItem(STORAGE_KEY);
-                if (!raw) return JSON.parse(JSON.stringify(defaultState));
-                const parsed = JSON.parse(raw);
-                const todayStr = new Date().toISOString().split('T')[0];
-
-                const state = {
-                    ...JSON.parse(JSON.stringify(defaultState)),
-                    ...parsed,
-                    profile: { ...defaultState.profile, ...(parsed.profile || {}) },
-                    workout: {
-                        ...defaultState.workout,
-                        ...(parsed.workout || {}),
-                        equipment: { ...defaultState.workout.equipment, ...((parsed.workout && parsed.workout.equipment) || {}) }
-                    },
-                    today: { ...defaultState.today, ...(parsed.today || {}) }
-                };
-
-                if (state.today.dateStr !== todayStr) {
-                    state.today = {
-                        dateStr: todayStr,
-                        foods: [],
-                        workoutBurned: 0,
-                        activityBurned: 0,
-                        steps: 0,
-                        floors: 0,
-                        syncSignature: ''
-                    };
-                }
-                return state;
-            } catch (e) {
-                return JSON.parse(JSON.stringify(defaultState));
-            }
-        }
-
-        let appState = loadAppState();
-        let fbAuth = null;
-        let fbDb = null;
-        let currentUser = null;
-        let cloudSaveTimeout = null;
-
-        function saveAppState() {
-            try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
-            } catch (e) {
-                console.warn('LocalStorage error:', e);
-            }
-            if (currentUser && fbDb) {
-                clearTimeout(cloudSaveTimeout);
-                cloudSaveTimeout = setTimeout(() => {
-                    pushToFirebaseCloud(true);
-                }, 1200);
-            }
-        }
-
-        // ==========================================================
-        // 2. TOAST & WEB AUDIO BEEP
-        // ==========================================================
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            if (!container) return;
-            const el = document.createElement('div');
-            const isWarn = type === 'warning';
-            el.className = `pointer-events-auto p-3.5 rounded-2xl border shadow-2xl backdrop-blur-md text-xs font-semibold flex items-start gap-2.5 transition-all duration-300 ${
-                isWarn
-                    ? 'bg-amber-950/95 border-amber-500/50 text-amber-100'
-                    : 'bg-slate-900/95 border-emerald-500/50 text-emerald-100'
-            }`;
-            el.innerHTML = `<span class="text-sm shrink-0">${isWarn ? '⚠️' : '✅'}</span><span class="leading-relaxed">${message}</span>`;
-            container.appendChild(el);
-            setTimeout(() => {
-                el.style.opacity = '0';
-                setTimeout(() => el.remove(), 300);
-            }, 4000);
-        }
-
-        function playToneBeep(freq = 660, sec = 0.16) {
-            try {
-                const Ctx = window.AudioContext || window.webkitAudioContext;
-                if (!Ctx) return;
-                const ctx = new Ctx();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(freq, ctx.currentTime);
-                gain.gain.setValueAtTime(0.18, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + sec);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start();
-                osc.stop(ctx.currentTime + sec);
-            } catch (e) {}
-        }
-
-        // ==========================================================
-        // 3. TOP SUMMARY BAR & PROFILE REFRESH
-        // ==========================================================
-        function refreshDashboardSummary() {
-            const p = appState.profile;
-            const eatenCal = Math.round(appState.today.foods.reduce((sum, item) => sum + (Number(item.kcal) || 0), 0));
-            const eatenPro = Math.round(appState.today.foods.reduce((sum, item) => sum + (Number(item.protein) || 0), 0));
-            const totalBurned = Math.round((Number(appState.today.workoutBurned) || 0) + (Number(appState.today.activityBurned) || 0));
-            const remaining = p.dailyCalorieTarget - eatenCal + totalBurned;
-
-            const diff = Math.max(0, p.currentWeight - p.targetWeight).toFixed(1);
-            document.getElementById('header-goal-subtitle').innerText = `Mục tiêu: ${p.currentWeight.toFixed(1)}kg → ${p.targetWeight.toFixed(1)}kg (-${diff}kg)`;
-
-            document.getElementById('strip-target-cal').innerText = `${p.dailyCalorieTarget.toLocaleString()} kcal`;
-            document.getElementById('strip-eaten-cal').innerText = `${eatenCal.toLocaleString()} kcal`;
-            document.getElementById('strip-burned-cal').innerText = `+${totalBurned.toLocaleString()} kcal`;
-            document.getElementById('strip-protein').innerText = `${eatenPro} / ${p.dailyProteinTarget}g`;
-
-            const remEl = document.getElementById('strip-remaining-cal');
-            remEl.innerText = `${remaining.toLocaleString()} kcal`;
-            remEl.className = remaining >= 0
-                ? 'font-black text-sm sm:text-base text-emerald-400'
-                : 'font-black text-sm sm:text-base text-rose-400';
-
-            document.getElementById('activity-kcal-badge').innerText = `${appState.today.activityBurned || 0} kcal`;
-            if (appState.today.steps > 0) document.getElementById('steps-input').value = appState.today.steps;
-            if (appState.today.floors > 0) document.getElementById('floors-input').value = appState.today.floors;
-        }
-
-        // ==========================================================
-        // 4. APPLE SHORTCUTS STEP & STAIR SYNC
-        // ==========================================================
-        function calculateActivityKcal(steps, floors) {
-            return Math.round((steps * 0.04) + (floors * 3.5));
-        }
-
-        function syncStepsFromUrlParams() {
-            try {
-                const params = new URLSearchParams(window.location.search);
-                const sParam = params.get('steps');
-                const fParam = params.get('floors');
-                if (sParam === null && fParam === null) return;
-
-                const steps = Math.max(0, Math.round(parseFloat(sParam) || 0));
-                const floors = Math.max(0, Math.round(parseFloat(fParam) || 0));
-                const sig = `${appState.today.dateStr}_${steps}_${floors}`;
-
-                if (appState.today.syncSignature !== sig) {
-                    const burned = calculateActivityKcal(steps, floors);
-                    appState.today.steps = steps;
-                    appState.today.floors = floors;
-                    appState.today.activityBurned = burned;
-                    appState.today.syncSignature = sig;
-                    saveAppState();
-                    showToast(`Đã đồng bộ từ iPhone: ${steps.toLocaleString()} bước & ${floors} tầng (+${burned} kcal)!`);
-                }
-            } catch (e) {
-                console.warn('URL sync parse error:', e);
-            }
-        }
-
-        function updateManualActivity() {
-            const steps = Math.max(0, parseInt(document.getElementById('steps-input').value) || 0);
-            const floors = Math.max(0, parseInt(document.getElementById('floors-input').value) || 0);
-            const burned = calculateActivityKcal(steps, floors);
-            appState.today.steps = steps;
-            appState.today.floors = floors;
-            appState.today.activityBurned = burned;
-            saveAppState();
-            refreshDashboardSummary();
-            showToast(`Đã cập nhật vận động: ${steps.toLocaleString()} bước & ${floors} tầng (+${burned} kcal)!`);
-        }
-
-        function toggleIphoneShortcutGuide() {
-            document.getElementById('iphone-shortcut-drawer').classList.toggle('hidden');
-        }
-
-        // ==========================================================
-        // 5. WORKOUT PLANNER & 4-PHASE GENERATOR
-        // ==========================================================
-        const EXERCISES_DB = [
-            // Phase 1: Khởi động
-            { id: 'w1', phase: 1, name: 'Xoay khớp toàn thân & Jumping Jacks', eq: ['none'], reps: '45 giây', workSec: 45, restSec: 15, desc: 'Xoay kỹ cổ tay, vai, hông và bật nhảy nhẹ nâng nhịp tim làm nóng cơ thể.' },
-            { id: 'w2', phase: 1, name: 'Chạy nâng cao đùi tại chỗ (High Knees)', eq: ['none'], reps: '40 giây', workSec: 40, restSec: 15, desc: 'Đánh tay nhịp nhàng, nâng đầu gối ngang hông và tiếp đất êm bằng mũi chân.' },
-            { id: 'w3', phase: 1, name: 'Inchworm Walkout (Bò sâu giãn cơ)', eq: ['mat'], reps: '8 lần', workSec: 45, restSec: 15, desc: 'Cúi người đi hai tay ra trước thành tư thế Plank rồi đi ngược lại đứng thẳng.' },
-
-            // Phase 2: Sức mạnh & Đốt mỡ chính
-            { id: 'm1', phase: 2, name: 'Pull-ups (Kéo xà đơn rộng tay)', eq: ['pullup'], reps: '6–10 lần', workSec: 45, restSec: 30, desc: 'Nắm xà rộng hơn vai, kéo ngực hướng lên thanh xà, hạ xuống kiểm soát 2 giây.' },
-            { id: 'm2', phase: 2, name: 'Goblet Squat (Squat ôm tạ 15kg)', eq: ['dumbbell'], reps: '15 lần', workSec: 50, restSec: 30, desc: 'Hai tay ôm chắc đầu tạ trước ngực, mở mũi chân 30 độ, hạ hông sâu qua đầu gối.' },
-            { id: 'm3', phase: 2, name: 'One-Arm Dumbbell Row (Chèo tạ 1 tay)', eq: ['dumbbell'], reps: '12 lần/bên', workSec: 50, restSec: 25, desc: 'Chống 1 tay lên ghế/đầu gối, giữ lưng thẳng, kéo cùi chỏ sát sườn lên cao.' },
-            { id: 'm4', phase: 2, name: 'Dumbbell Floor Press (Đẩy ngực trên thảm)', eq: ['dumbbell', 'mat'], reps: '12–15 lần', workSec: 45, restSec: 25, desc: 'Nằm trên thảm, cùi chỏ chạm nhẹ sàn rồi đẩy dứt khoát tạ lên thẳng ngực.' },
-            { id: 'm5', phase: 2, name: 'Push-ups (Hít đất chuẩn)', eq: ['none'], reps: '12–18 lần', workSec: 45, restSec: 25, desc: 'Siết chặt bụng và mông giữ lưng thẳng, hạ ngực cách sàn 2cm rồi đẩy lên.' },
-            { id: 'm6', phase: 2, name: 'Bodyweight Jump Squats (Squat bật nhảy)', eq: ['none'], reps: '15 lần', workSec: 40, restSec: 25, desc: 'Hạ Squat sâu rồi bật nhảy hết sức lên cao, tiếp đất bằng mũi chân.' },
-            { id: 'm7', phase: 2, name: 'Reverse Lunges (Chùng chân bước lùi)', eq: ['none'], reps: '12 lần/chân', workSec: 45, restSec: 25, desc: 'Bước dài 1 chân ra sau hạ gối gần chạm sàn, đạp gót chân trước đứng thẳng.' },
-
-            // Phase 3: Core & Bụng
-            { id: 'c1', phase: 3, name: 'Hanging Knee Raises (Treo xà nâng gối)', eq: ['pullup'], reps: '12–15 lần', workSec: 45, restSec: 25, desc: 'Treo thẳng trên xà, cuộn xương chậu kéo hai gối lên cao quá thắt lưng.' },
-            { id: 'c2', phase: 3, name: 'Dumbbell Russian Twist (Xoay eo với tạ)', eq: ['dumbbell', 'mat'], reps: '20 lần', workSec: 45, restSec: 20, desc: 'Ngồi ngả lưng 45 độ, nhấc nhẹ gót chân, xoay vai vặn tạ chạm hai bên hông.' },
-            { id: 'c3', phase: 3, name: 'Mountain Climbers (Leo núi tốc độ cao)', eq: ['none'], reps: '45 giây', workSec: 45, restSec: 20, desc: 'Chống tay thẳng vai, kéo liên tục hai đầu gối về ngực nhanh nhất có thể.' },
-            { id: 'c4', phase: 3, name: 'Plank Giữ chuẩn siết bụng', eq: ['none'], reps: '45–60 giây', workSec: 50, restSec: 20, desc: 'Chống khuỷu tay vuông góc, siết chặt bụng và mông, không để võng lưng.' },
-
-            // Phase 4: Giãn cơ
-            { id: 's1', phase: 4, name: 'Child’s Pose & Cobra Stretch (Giãn lưng bụng)', eq: ['none'], reps: '45 giây', workSec: 45, restSec: 10, desc: 'Ngồi lùi mông về gót chân vươn dài tay, sau đó trườn người rướn ngực giãn cơ bụng.' },
-            { id: 's2', phase: 4, name: 'Standing Quad & Hamstring Stretch (Giãn đùi)', eq: ['none'], reps: '45 giây', workSec: 45, restSec: 10, desc: 'Kéo gót chân chạm mông giãn đùi trước và cúi gập người giãn gân kheo sau buổi tập.' }
-        ];
-
-        function onDurationChange(val) {
-            appState.workout.duration = parseInt(val) || 30;
-            document.getElementById('duration-val').innerText = appState.workout.duration;
-            updateEstimatedBurnDisplay();
-            saveAppState();
-        }
-
-        function setWorkoutIntensity(level) {
-            appState.workout.intensity = level;
-            ['light', 'standard', 'hiit'].forEach(lvl => {
-                const btn = document.getElementById(`btn-int-${lvl}`);
-                if (!btn) return;
-                btn.className = lvl === level
-                    ? 'py-2.5 px-2 rounded-xl text-xs font-bold border border-emerald-500 bg-emerald-500/15 text-emerald-400 transition-all'
-                    : 'py-2.5 px-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-950 text-slate-300 transition-all';
-            });
-            updateEstimatedBurnDisplay();
-            generateWorkoutPlan(false);
-            saveAppState();
-        }
-
-        function toggleEquipment(key) {
-            appState.workout.awayMode = false;
-            appState.workout.equipment[key] = !appState.workout.equipment[key];
-            renderEquipmentState();
-            generateWorkoutPlan(false);
-            saveAppState();
-        }
-
-        function toggleAwayMode() {
-            appState.workout.awayMode = !appState.workout.awayMode;
-            if (appState.workout.awayMode) {
-                appState.workout.equipment = { mat: false, dumbbell: false, pullup: false };
-                showToast('Đã bật Chế độ Đi xa: Bài tập chuyển sang 100% không dụng cụ!', 'warning');
-            } else {
-                appState.workout.equipment = { mat: true, dumbbell: true, pullup: true };
-                showToast('Đã bật lại dụng cụ ở nhà (Thảm, Tạ đơn 15kg, Xà đơn).');
-            }
-            renderEquipmentState();
-            generateWorkoutPlan(false);
-            saveAppState();
-        }
-
-        function renderEquipmentState() {
-            const eq = appState.workout.equipment;
-            const keys = ['mat', 'dumbbell', 'pullup'];
-            keys.forEach(k => {
-                const btn = document.getElementById(`btn-eq-${k}`);
-                if (!btn) return;
-                btn.className = eq[k]
-                    ? 'py-2.5 px-2 rounded-xl text-xs font-bold border border-emerald-500 bg-emerald-500/15 text-emerald-400 transition-all'
-                    : 'py-2.5 px-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-950 text-slate-500 line-through transition-all';
-            });
-
-            const isAway = appState.workout.awayMode || (!eq.mat && !eq.dumbbell && !eq.pullup);
-            const awayBtn = document.getElementById('btn-away-toggle');
-            const awayBadge = document.getElementById('away-badge');
-            if (isAway) {
-                awayBtn.className = 'text-[11px] font-bold px-2.5 py-1 rounded-lg border border-amber-400 bg-amber-500 text-slate-950 transition-all';
-                awayBadge.classList.remove('hidden');
-            } else {
-                awayBtn.className = 'text-[11px] font-bold px-2.5 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition-all';
-                awayBadge.classList.add('hidden');
-            }
-        }
-
-        function updateEstimatedBurnDisplay() {
-            const { duration, intensity } = appState.workout;
-            const w = appState.profile.currentWeight || 71;
-            const met = intensity === 'light' ? 5.8 : intensity === 'hiit' ? 9.5 : 7.5;
-            const kcal = Math.round((met * 3.5 * w / 200) * duration);
-            document.getElementById('workout-est-badge').innerText = `Ước tính đốt: ~${kcal} kcal`;
-            document.getElementById('complete-session-kcal').innerText = `${kcal} kcal`;
-            return kcal;
-        }
-
-        function generateWorkoutPlan(notify = false) {
-            const { duration, intensity, equipment } = appState.workout;
-            const compatible = EXERCISES_DB.filter(ex => ex.eq.every(req => req === 'none' || equipment[req]));
-
-            const byPhase = (p) => compatible.filter(e => e.phase === p).sort(() => Math.random() - 0.5);
-            const p1 = byPhase(1);
-            const p2 = byPhase(2).sort((a, b) => (b.eq[0] !== 'none' ? 1 : 0) - (a.eq[0] !== 'none' ? 1 : 0));
-            const p3 = byPhase(3);
-            const p4 = byPhase(4);
-
-            const setsMain = duration <= 20 ? 3 : 4;
-            const mainCount = duration <= 20 ? 2 : duration <= 40 ? 3 : 4;
-            const coreCount = duration <= 25 ? 1 : 2;
-
-            const chosen = [
-                ...(p1[0] ? [{ ...p1[0], sets: 2 }] : []),
-                ...p2.slice(0, mainCount).map(e => ({ ...e, sets: setsMain })),
-                ...p3.slice(0, coreCount).map(e => ({ ...e, sets: 3 })),
-                ...(p4[0] ? [{ ...p4[0], sets: 1 }] : [])
-            ].map(item => ({
-                ...item,
-                restSec: intensity === 'hiit' ? Math.max(15, item.restSec - 10) : intensity === 'light' ? item.restSec + 10 : item.restSec,
-                done: false
-            }));
-
-            appState.workout.plan = chosen;
-            saveAppState();
-            renderWorkoutPlan();
-            updateEstimatedBurnDisplay();
-            if (notify) showToast(`Đã tạo giáo án ${duration} phút gồm ${chosen.length} bài chuẩn 4 giai đoạn!`);
-        }
-
-        function renderWorkoutPlan() {
-            const container = document.getElementById('workout-plan-list');
-            if (!appState.workout.plan || appState.workout.plan.length === 0) {
-                generateWorkoutPlan(false);
-                return;
-            }
-
-            const phaseBadges = {
-                1: { text: 'Giai đoạn 1 • Khởi động', cls: 'bg-sky-500/15 text-sky-400 border-sky-500/30' },
-                2: { text: 'Giai đoạn 2 • Sức mạnh & Đốt mỡ chính', cls: 'bg-orange-500/15 text-orange-400 border-orange-500/30' },
-                3: { text: 'Giai đoạn 3 • Core & Bụng', cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
-                4: { text: 'Giai đoạn 4 • Giãn cơ phục hồi', cls: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30' }
-            };
-
-            container.innerHTML = appState.workout.plan.map((ex, idx) => {
-                const pb = phaseBadges[ex.phase] || phaseBadges[2];
-                return `
-                <div class="bg-slate-900 border ${ex.done ? 'border-emerald-500/50 opacity-65' : 'border-slate-800'} rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all">
-                    <div class="space-y-2 flex-1">
-                        <span class="inline-block text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-md border ${pb.cls}">${pb.text}</span>
-                        <h4 class="font-extrabold text-base text-white ${ex.done ? 'line-through text-slate-400' : ''}">${idx + 1}. ${ex.name}</h4>
-                        <div class="flex flex-wrap gap-2 text-xs">
-                            <span class="bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg text-emerald-400 font-bold">${ex.sets} hiệp × ${ex.reps}</span>
-                            <span class="bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg text-sky-400 font-semibold">Nghỉ ${ex.restSec}s</span>
-                        </div>
-                        <p class="text-xs text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800/80">${ex.desc}</p>
-                    </div>
-                    <div class="flex sm:flex-col gap-2 shrink-0 sm:w-32">
-                        <button type="button" onclick="selectExerciseForTimer(${idx}, 'work')" class="flex-1 bg-slate-950 hover:bg-slate-800 text-emerald-400 border border-emerald-500/40 font-bold py-2 px-3 rounded-xl text-xs transition-all">
-                            ⏱ Tập (${ex.workSec}s)
-                        </button>
-                        <button type="button" onclick="selectExerciseForTimer(${idx}, 'rest')" class="flex-1 bg-slate-950 hover:bg-slate-800 text-sky-400 border border-sky-500/30 font-semibold py-2 px-3 rounded-xl text-xs transition-all">
-                            ⏸ Nghỉ (${ex.restSec}s)
-                        </button>
-                        <button type="button" onclick="toggleExerciseCompleted(${idx})" class="flex-1 ${ex.done ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'} font-bold py-2 px-3 rounded-xl text-xs transition-all">
-                            ${ex.done ? '✓ Đã xong' : 'Đánh dấu'}
-                        </button>
-                    </div>
-                </div>`;
-            }).join('');
-        }
-
-        function toggleExerciseCompleted(idx) {
-            const item = appState.workout.plan[idx];
-            if (!item) return;
-            item.done = !item.done;
-            if (item.done) playToneBeep(660, 0.14);
-            saveAppState();
-            renderWorkoutPlan();
-        }
-
-        function logCompletedWorkoutSession() {
-            const burned = updateEstimatedBurnDisplay();
-            appState.today.workoutBurned = (appState.today.workoutBurned || 0) + burned;
-            appState.workout.plan.forEach(e => e.done = true);
-            saveAppState();
-            renderWorkoutPlan();
-            refreshDashboardSummary();
-            playToneBeep(880, 0.3);
-            showToast(`Tuyệt vời! Đã cộng +${burned} kcal vào quỹ Đã đốt hôm nay.`);
-        }
-
-        // ==========================================================
-        // 6. WORKOUT TIMER LOGIC
-        // ==========================================================
-        let timerRemain = 45;
-        let timerDefault = 45;
-        let timerHandle = null;
-        let timerRunning = false;
-        let currentTimerIdx = 0;
-
-        function selectExerciseForTimer(idx, mode = 'work') {
-            currentTimerIdx = idx;
-            const ex = appState.workout.plan[idx];
-            if (!ex) return;
-            stopWorkoutTimer();
-            timerRemain = mode === 'rest' ? ex.restSec : ex.workSec;
-            timerDefault = timerRemain;
-            document.getElementById('timer-stage-label').innerText = mode === 'rest' ? `Nghỉ giữa hiệp • Bài #${idx + 1}` : `Đang tập • Bài #${idx + 1}`;
-            document.getElementById('timer-current-title').innerText = ex.name;
-            renderTimerClock();
-            startWorkoutTimer();
-        }
-
-        function startQuickPresetTimer(sec, title) {
-            stopWorkoutTimer();
-            timerRemain = sec;
-            timerDefault = sec;
-            document.getElementById('timer-stage-label').innerText = 'Đếm ngược nhanh';
-            document.getElementById('timer-current-title').innerText = title;
-            renderTimerClock();
-            startWorkoutTimer();
-        }
-
-        function nextWorkoutExercise() {
-            const nextIdx = (currentTimerIdx + 1) % Math.max(1, appState.workout.plan.length);
-            selectExerciseForTimer(nextIdx, 'work');
-        }
-
-        function renderTimerClock() {
-            const m = String(Math.floor(timerRemain / 60)).padStart(2, '0');
-            const s = String(timerRemain % 60).padStart(2, '0');
-            document.getElementById('timer-clock').innerText = `${m}:${s}`;
-        }
-
-        function toggleWorkoutTimer() {
-            if (timerRunning) stopWorkoutTimer();
-            else startWorkoutTimer();
-        }
-
-        function startWorkoutTimer() {
-            if (timerRunning) return;
-            timerRunning = true;
-            playToneBeep(520, 0.12);
-            const btn = document.getElementById('btn-timer-start');
-            btn.innerText = '⏸ Dừng';
-            btn.className = 'px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs transition-all';
-
-            timerHandle = setInterval(() => {
-                if (timerRemain > 0) {
-                    timerRemain--;
-                    renderTimerClock();
-                    if (timerRemain <= 3 && timerRemain > 0) playToneBeep(440, 0.12);
-                } else {
-                    stopWorkoutTimer();
-                    playToneBeep(880, 0.5);
-                    showToast('Hết giờ! Bấm Nghỉ hoặc chuyển sang bài tiếp theo.', 'warning');
-                    timerRemain = timerDefault;
-                    renderTimerClock();
-                }
-            }, 1000);
-        }
-
-        function stopWorkoutTimer() {
-            timerRunning = false;
-            clearInterval(timerHandle);
-            const btn = document.getElementById('btn-timer-start');
-            btn.innerText = '▶ Chạy';
-            btn.className = 'px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all';
-        }
-
-        function resetWorkoutTimer() {
-            stopWorkoutTimer();
-            timerRemain = timerDefault;
-            renderTimerClock();
-        }
-
-        // ==========================================================
-        // 7. DUAL AI NUTRITION ANALYZER (TEXT/VOICE + PHOTO)
-        // ==========================================================
-        let selectedPhotoBase64 = null;
-        let currentAnalyzedResult = null;
-
-        function appendFoodChip(text) {
-            const area = document.getElementById('meal-story-input');
-            const cur = area.value.trim();
-            area.value = cur ? `${cur}, ${text}` : text;
-            area.focus();
-        }
-
-        function onFoodPhotoSelected(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const maxSide = 800;
-                    let w = img.width;
-                    let h = img.height;
-                    if (w > maxSide || h > maxSide) {
-                        if (w > h) { h = Math.round((h * maxSide) / w); w = maxSide; }
-                        else { w = Math.round((w * maxSide) / h); h = maxSide; }
-                    }
-                    canvas.width = w;
-                    canvas.height = h;
-                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-                    selectedPhotoBase64 = dataUrl.split(',')[1];
-
-                    const prev = document.getElementById('photo-preview-img');
-                    prev.src = dataUrl;
-                    prev.classList.remove('hidden');
-                    document.getElementById('photo-placeholder').classList.add('hidden');
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-
-        async function fetchGeminiWithAutoFallback(apiKey, payload, btnEl) {
-            let lastErr = null;
-            for (let i = 0; i < GEMINI_FALLBACK_MODELS.length; i++) {
-                const model = GEMINI_FALLBACK_MODELS[i];
-                if (btnEl && i > 0) {
-                    btnEl.innerText = `⏳ Thử máy chủ dự phòng (${i + 1}/${GEMINI_FALLBACK_MODELS.length})...`;
-                }
-                try {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-                    const res = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    if (!res.ok) {
-                        const errJson = await res.json().catch(() => ({}));
-                        const msg = errJson?.error?.message || `HTTP ${res.status}`;
-                        const busy = res.status === 429 || res.status === 503 || res.status === 404 || /high demand|overloaded|quota|not found/i.test(msg);
-                        if (busy && i < GEMINI_FALLBACK_MODELS.length - 1) {
-                            lastErr = new Error(msg);
-                            continue;
-                        }
-                        throw new Error(msg);
-                    }
-                    const data = await res.json();
-                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (!text) throw new Error('Không có phản hồi từ AI.');
-                    const clean = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-                    return JSON.parse(clean);
-                } catch (err) {
-                    lastErr = err;
-                    if (i === GEMINI_FALLBACK_MODELS.length - 1) throw err;
-                }
-            }
-            throw lastErr || new Error('Máy chủ AI đang bận.');
-        }
-
-        async function analyzeMealStoryWithAI() {
-            const text = document.getElementById('meal-story-input').value.trim();
-            if (!text) {
-                showToast('Hãy nhập hoặc đọc các món đã ăn trước nhé!', 'warning');
-                return;
-            }
-            const apiKey = localStorage.getItem(API_KEY_STORAGE) || '';
-            if (!apiKey) {
-                showToast('Chưa cài Gemini API Key — đang tự động dùng bộ tính nhanh từ khóa!', 'warning');
-                analyzeMealStoryOffline();
-                return;
-            }
-
-            const btn = document.getElementById('btn-ai-story');
-            const origText = btn.innerText;
-            btn.disabled = true;
-            btn.innerText = '⏳ AI đang tính Calo...';
-
-            const prompt = `Bạn là chuyên gia dinh dưỡng Việt Nam. Hãy phân tích chính xác khẩu phần từng món ăn/đồ uống trong câu sau: "${text}".
-Chú ý đúng số lượng người dùng nêu (ví dụ: 1 quả trứng = 75 kcal / 6g đạm, nửa bát cơm = 100 kcal, 1 bát cơm = 200 kcal).
-Trả về DUY NHẤT JSON hợp lệ theo mẫu:
-{"items":[{"name":"Tên món + định lượng","calories":200,"protein":15}],"advice":"Lời khuyên ngắn gọn"}`;
-
-            try {
-                const parsed = await fetchGeminiWithAutoFallback(apiKey, {
-                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: 'application/json' }
-                }, btn);
-                displayAnalyzedResult(parsed);
-                playToneBeep(740, 0.18);
-                showToast('AI đã tính xong! Bạn có thể sửa trực tiếp số Calo/Đạm từng món trước khi lưu.');
-            } catch (err) {
-                showToast(`AI đang bận (${err.message}). Đã chuyển sang tính nhanh từ khóa!`, 'warning');
-                analyzeMealStoryOffline();
-            } finally {
-                btn.disabled = false;
-                btn.innerText = origText;
-            }
-        }
-
-        async function analyzeFoodPhotoWithAI() {
-            if (!selectedPhotoBase64) {
-                showToast('Vui lòng chọn hoặc chụp 1 ảnh món ăn trước nhé!', 'warning');
-                document.getElementById('food-photo-file').click();
-                return;
-            }
-            const apiKey = localStorage.getItem(API_KEY_STORAGE) || '';
-            if (!apiKey) {
-                showToast('Vui lòng cài Gemini API Key trong tab Tiến độ & Hồ sơ để quét ảnh bằng AI!', 'warning');
-                window.switchTab('progress');
-                return;
-            }
-
-            const btn = document.getElementById('btn-ai-photo');
-            const origText = btn.innerText;
-            btn.disabled = true;
-            btn.innerText = '⏳ Đang quét ảnh...';
-
-            const prompt = `Bạn là chuyên gia dinh dưỡng Việt Nam. Nhận diện từng món ăn trong ảnh và ước lượng Calo + Đạm (Protein).
-Trả về DUY NHẤT JSON hợp lệ theo mẫu:
-{"items":[{"name":"Tên món + định lượng","calories":250,"protein":18}],"advice":"Lời khuyên ngắn gọn"}`;
-
-            try {
-                const parsed = await fetchGeminiWithAutoFallback(apiKey, {
-                    contents: [{
-                        role: 'user',
-                        parts: [
-                            { text: prompt },
-                            { inlineData: { mimeType: 'image/jpeg', data: selectedPhotoBase64 } }
-                        ]
-                    }],
-                    generationConfig: { responseMimeType: 'application/json' }
-                }, btn);
-                displayAnalyzedResult(parsed);
-                playToneBeep(740, 0.18);
-                showToast('Đã quét xong ảnh bữa ăn! Bạn có thể chỉnh sửa lại số liệu nếu cần.');
-            } catch (err) {
-                showToast(`Lỗi quét ảnh: ${err.message}`, 'warning');
-            } finally {
-                btn.disabled = false;
-                btn.innerText = origText;
-            }
-        }
-
-        // Smart Vietnamese Quantity-Aware Offline Parser
-        function analyzeMealStoryOffline() {
-            const raw = document.getElementById('meal-story-input').value.trim().toLowerCase();
-            if (!raw) {
-                showToast('Hãy nhập các món đã ăn vào ô trống trước nhé!', 'warning');
-                return;
-            }
-
-            let text = raw
-                .replace(/\bnửa\b/g, '0.5')
-                .replace(/\b1\/2\b/g, '0.5')
-                .replace(/\bmột\b/g, '1')
-                .replace(/\bhai\b/g, '2')
-                .replace(/\bba\b/g, '3')
-                .replace(/\bbốn\b/g, '4');
-
-            const foodDict = [
-                { keys: ['cơm gạo lứt', 'gạo lứt'], label: 'Cơm gạo lứt', unit: 'bát', gramMode: false, kcal: 175, pro: 4 },
-                { keys: ['cơm trắng', 'cơm'], label: 'Cơm trắng', unit: 'bát', gramMode: false, kcal: 200, pro: 4 },
-                { keys: ['phở bò'], label: 'Phở bò tái', unit: 'bát', gramMode: false, kcal: 480, pro: 28 },
-                { keys: ['phở gà', 'phở'], label: 'Phở gà', unit: 'bát', gramMode: false, kcal: 440, pro: 30 },
-                { keys: ['bún bò'], label: 'Bún bò', unit: 'bát', gramMode: false, kcal: 540, pro: 28 },
-                { keys: ['bún'], label: 'Bún thịt nướng', unit: 'bát', gramMode: false, kcal: 520, pro: 28 },
-                { keys: ['bánh mì'], label: 'Bánh mì', unit: 'ổ', gramMode: false, kcal: 400, pro: 16 },
-                { keys: ['trứng gà', 'trứng vịt', 'trứng luộc', 'trứng ốp', 'trứng'], label: 'Trứng gà', unit: 'quả', gramMode: false, kcal: 75, pro: 6 },
-                { keys: ['ức gà'], label: 'Ức gà', unit: '100g', gramMode: true, kcal: 165, pro: 31 },
-                { keys: ['thịt kho', 'thịt lợn', 'thịt heo', 'thịt nạc', 'thịt'], label: 'Thịt lợn nạc', unit: '100g', gramMode: true, kcal: 195, pro: 22 },
-                { keys: ['thịt bò', 'bò'], label: 'Thịt bò', unit: '100g', gramMode: true, kcal: 210, pro: 25 },
-                { keys: ['đậu phụ', 'đậu hũ'], label: 'Đậu phụ', unit: 'miếng', gramMode: false, kcal: 80, pro: 8 },
-                { keys: ['cá'], label: 'Cá kho/nướng', unit: '100g', gramMode: true, kcal: 160, pro: 23 },
-                { keys: ['tôm'], label: 'Tôm', unit: '100g', gramMode: true, kcal: 110, pro: 22 },
-                { keys: ['rau muống', 'rau cải', 'rau luộc', 'canh rau', 'rau'], label: 'Rau xanh luộc/canh', unit: 'đĩa', gramMode: false, kcal: 50, pro: 3 },
-                { keys: ['khoai lang'], label: 'Khoai lang', unit: 'củ', gramMode: false, kcal: 130, pro: 2 },
-                { keys: ['chuối'], label: 'Chuối', unit: 'quả', gramMode: false, kcal: 100, pro: 1 },
-                { keys: ['trà sữa'], label: 'Trà sữa', unit: 'ly', gramMode: false, kcal: 420, pro: 5 },
-                { keys: ['cà phê sữa'], label: 'Cà phê sữa đá', unit: 'ly', gramMode: false, kcal: 180, pro: 3 },
-                { keys: ['sữa tươi', 'sữa'], label: 'Sữa tươi', unit: 'hộp', gramMode: false, kcal: 110, pro: 6 }
-            ];
-
-            const items = [];
-            foodDict.forEach(entry => {
-                const hit = entry.keys.find(k => text.includes(k));
-                if (!hit) return;
-
-                let mult = 1;
-                let qtyStr = `1 ${entry.unit}`;
-
-                const gramMatch = text.match(new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(g|gr|gram|lạng)\\s*${hit}`));
-                if (gramMatch && entry.gramMode) {
-                    const num = parseFloat(gramMatch[1]);
-                    const grams = gramMatch[2] === 'lạng' ? num * 100 : num;
-                    mult = Math.max(0.2, grams / 100);
-                    qtyStr = `${Math.round(grams)}g`;
-                } else {
-                    const countMatch = text.match(new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(?:bát|tô|quả|trái|ổ|ly|cốc|đĩa|củ|hộp|miếng|phần)?\\s*${hit}`));
-                    if (countMatch) {
-                        mult = Math.min(10, Math.max(0.25, parseFloat(countMatch[1])));
-                        qtyStr = entry.gramMode ? `${Math.round(mult * 100)}g` : `${mult} ${entry.unit}`;
-                    }
-                }
-
-                items.push({
-                    name: `${entry.label} (${qtyStr})`,
-                    calories: Math.round(entry.kcal * mult),
-                    protein: Math.round(entry.pro * mult)
-                });
-                entry.keys.forEach(k => { text = text.split(k).join(' '); });
-            });
-
-            if (items.length === 0) {
-                items.push({ name: 'Bữa ăn tự nhập (Bấm vào ô số để sửa)', calories: 400, protein: 20 });
-            }
-
-            displayAnalyzedResult({
-                items,
-                advice: 'Bạn có thể sửa trực tiếp số Calo (kcal) và Đạm (g) ở từng dòng phía trên trước khi bấm Cộng vào Calo hôm nay.'
-            });
-            showToast('Đã tính nhanh xong! Hãy kiểm tra và chỉnh số nếu cần.');
-        }
-
-        function displayAnalyzedResult(data) {
-            currentAnalyzedResult = {
-                items: (data.items || []).map(it => ({
-                    name: it.name || 'Món ăn',
-                    calories: Math.round(Number(it.calories) || 0),
-                    protein: Math.round(Number(it.protein) || 0)
-                })),
-                advice: data.advice || 'Ưu tiên ăn đủ đạm và rau xanh để no lâu khi giảm mỡ.'
-            };
-
-            const box = document.getElementById('analysis-result-card');
-            const list = document.getElementById('result-items-container');
-
-            list.innerHTML = currentAnalyzedResult.items.map((it, idx) => `
-                <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-800">
-                    <input type="text" value="${it.name}" onchange="updateAnalyzedRow(${idx}, 'name', this.value)" class="flex-1 min-w-[160px] bg-transparent text-xs sm:text-sm font-bold text-white focus:outline-none">
-                    <div class="flex items-center gap-2 shrink-0">
-                        <div class="flex items-center gap-1">
-                            <input type="number" value="${it.calories}" oninput="updateAnalyzedRow(${idx}, 'calories', this.value)" class="w-16 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-right text-xs font-extrabold text-orange-400 focus:outline-none focus:border-orange-400">
-                            <span class="text-[11px] text-slate-400">kcal</span>
-                        </div>
-                        <div class="flex items-center gap-1">
-                            <input type="number" value="${it.protein}" oninput="updateAnalyzedRow(${idx}, 'protein', this.value)" class="w-14 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-right text-xs font-extrabold text-sky-400 focus:outline-none focus:border-sky-400">
-                            <span class="text-[11px] text-slate-400">g Đạm</span>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-
-            document.getElementById('result-advice-box').innerText = `💡 ${currentAnalyzedResult.advice}`;
-            recalcAnalyzedTotals();
-            box.classList.remove('hidden');
-        }
-
-        function updateAnalyzedRow(idx, field, val) {
-            if (!currentAnalyzedResult || !currentAnalyzedResult.items[idx]) return;
-            if (field === 'name') {
-                currentAnalyzedResult.items[idx].name = val;
-            } else {
-                currentAnalyzedResult.items[idx][field] = Math.max(0, parseFloat(val) || 0);
-                recalcAnalyzedTotals();
-            }
-        }
-
-        function recalcAnalyzedTotals() {
-            if (!currentAnalyzedResult) return;
-            const totalCal = Math.round(currentAnalyzedResult.items.reduce((s, i) => s + (Number(i.calories) || 0), 0));
-            const totalPro = Math.round(currentAnalyzedResult.items.reduce((s, i) => s + (Number(i.protein) || 0), 0));
-            document.getElementById('result-total-kcal').innerText = `${totalCal.toLocaleString()} kcal`;
-            document.getElementById('result-total-protein').innerText = `${totalPro}g Đạm (Protein)`;
-        }
-
-        function saveAnalyzedItemsToLog() {
-            if (!currentAnalyzedResult || currentAnalyzedResult.items.length === 0) return;
-            const nowTime = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-            let addedCal = 0;
-            let addedPro = 0;
-
-            currentAnalyzedResult.items.forEach((it, i) => {
-                const kcal = Math.round(Number(it.calories) || 0);
-                const pro = Math.round(Number(it.protein) || 0);
-                addedCal += kcal;
-                addedPro += pro;
-                appState.today.foods.push({
-                    id: Date.now() + i,
-                    time: nowTime,
-                    name: it.name,
-                    kcal,
-                    protein: pro
-                });
-            });
-
-            saveAppState();
-            renderFoodLogList();
-            refreshDashboardSummary();
-            playToneBeep(880, 0.22);
-            document.getElementById('analysis-result-card').classList.add('hidden');
-            showToast(`Đã cộng +${addedCal} kcal & +${addedPro}g Đạm vào nhật ký hôm nay!`);
-        }
-
-        function addManualFoodItem() {
-            const name = document.getElementById('manual-food-name').value.trim();
-            const kcal = parseInt(document.getElementById('manual-food-kcal').value) || 0;
-            const protein = parseInt(document.getElementById('manual-food-protein').value) || 0;
-
-            if (!name || kcal <= 0) {
-                showToast('Vui lòng nhập tên món và số Calo hợp lệ!', 'warning');
-                return;
-            }
-            const nowTime = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-            appState.today.foods.push({ id: Date.now(), time: nowTime, name, kcal, protein });
-
-            document.getElementById('manual-food-name').value = '';
-            document.getElementById('manual-food-kcal').value = '';
-            document.getElementById('manual-food-protein').value = '';
-            saveAppState();
-            renderFoodLogList();
-            refreshDashboardSummary();
-            showToast(`Đã thêm: ${name} (${kcal} kcal)`);
-        }
-
-        function deleteFoodLogItem(id) {
-            appState.today.foods = appState.today.foods.filter(f => f.id !== id);
-            saveAppState();
-            renderFoodLogList();
-            refreshDashboardSummary();
-        }
-
-        function clearTodayFoodLog() {
-            appState.today.foods = [];
-            appState.today.workoutBurned = 0;
-            appState.today.activityBurned = 0;
-            appState.today.steps = 0;
-            appState.today.floors = 0;
-            saveAppState();
-            renderFoodLogList();
-            refreshDashboardSummary();
-            showToast('Đã làm mới nhật ký Calo & vận động hôm nay.');
-        }
-
-        function renderFoodLogList() {
-            const container = document.getElementById('today-food-log-list');
-            if (!appState.today.foods || appState.today.foods.length === 0) {
-                container.innerHTML = `<p class="text-xs text-slate-500 py-6 text-center">Chưa có bữa ăn nào hôm nay. Hãy kể món đã ăn hoặc quét ảnh ở khung phía trên.</p>`;
-                return;
-            }
-
-            container.innerHTML = appState.today.foods.map(f => `
-                <div class="py-3 flex items-center justify-between gap-3">
-                    <div class="min-w-0 flex-1">
-                        <div class="flex items-center gap-2">
-                            <span class="text-[11px] font-mono text-slate-500">${f.time || ''}</span>
-                            <p class="text-xs sm:text-sm font-bold text-slate-200 truncate">${f.name}</p>
-                        </div>
-                        <span class="text-[11px] text-sky-400 font-semibold">${f.protein || 0}g Đạm (Protein)</span>
-                    </div>
-                    <div class="flex items-center gap-3 shrink-0">
-                        <span class="text-xs sm:text-sm font-black text-orange-400">${f.kcal} kcal</span>
-                        <button type="button" onclick="deleteFoodLogItem(${f.id})" class="p-1.5 rounded-lg bg-slate-950 hover:bg-rose-950 text-slate-400 hover:text-rose-400 text-xs transition-all" title="Xóa món">
-                            🗑️
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
+// ... existing code ... -->
         // ==========================================================
         // 8. FIREBASE CLOUD SYNC & GOOGLE GMAIL AUTH
         // ==========================================================
-        function getFirebaseConfig() {
-            if (DEFAULT_FIREBASE_CONFIG && DEFAULT_FIREBASE_CONFIG.apiKey) return DEFAULT_FIREBASE_CONFIG;
-            try {
-                const raw = localStorage.getItem(FIREBASE_CFG_STORAGE);
-                if (!raw) return null;
-                const parsed = JSON.parse(raw);
-                return (parsed && parsed.apiKey && parsed.projectId) ? parsed : null;
-            } catch (e) {
-                return null;
-            }
-        }
-
-        function toggleFirebaseConfigBox() {
-            const box = document.getElementById('firebase-config-box');
-            box.classList.toggle('hidden');
-            const cfg = getFirebaseConfig();
-            if (cfg && !box.classList.contains('hidden')) {
-                document.getElementById('firebase-config-input').value = JSON.stringify(cfg, null, 2);
-            }
-        }
-
-        function saveFirebaseConfig() {
-            let txt = document.getElementById('firebase-config-input').value.trim();
-            if (!txt) {
-                showToast('Vui lòng dán cấu hình Firebase trước khi lưu!', 'warning');
-                return;
-            }
-            try {
-                txt = txt.replace(/^(const|let|var)\s+\w+\s*=\s*/i, '').replace(/;\s*$/, '');
-                const parsed = Function('"use strict";return (' + txt + ')')();
-                if (!parsed || !parsed.apiKey || !parsed.projectId) throw new Error('Thiếu apiKey hoặc projectId');
-                localStorage.setItem(FIREBASE_CFG_STORAGE, JSON.stringify(parsed));
-                document.getElementById('firebase-config-box').classList.add('hidden');
-                showToast('Đã lưu cấu hình Firebase! Đang kích hoạt đăng nhập Gmail...');
-                initializeFirebase();
-            } catch (e) {
-                showToast('Cấu hình Firebase chưa đúng định dạng JSON/Object!', 'warning');
-            }
-        }
-
-        function removeFirebaseConfig() {
-            localStorage.removeItem(FIREBASE_CFG_STORAGE);
-            document.getElementById('firebase-config-input').value = '';
-            showToast('Đã xóa cấu hình Firebase khỏi máy này.', 'warning');
-        }
-
         function initializeFirebase() {
-            const cfg = getFirebaseConfig();
-            if (!cfg || typeof firebase === 'undefined') {
+            if (!DEFAULT_FIREBASE_CONFIG || !DEFAULT_FIREBASE_CONFIG.apiKey || typeof firebase === 'undefined') {
                 updateCloudAuthUI(null);
                 return;
             }
             try {
-                if (!firebase.apps.length) firebase.initializeApp(cfg);
+                if (!firebase.apps.length) firebase.initializeApp(DEFAULT_FIREBASE_CONFIG);
                 fbAuth = firebase.auth();
                 fbDb = firebase.firestore();
 
@@ -1645,6 +700,7 @@ Trả về DUY NHẤT JSON hợp lệ theo mẫu:
         function updateCloudAuthUI(user) {
             const headerDot = document.getElementById('header-gmail-dot');
             const headerLabel = document.getElementById('header-gmail-label');
+            const userNameEl = document.getElementById('cloud-user-name');
             const statusText = document.getElementById('cloud-status-text');
             const avatar = document.getElementById('progress-user-avatar');
             const btnIn = document.getElementById('btn-google-signin');
@@ -1654,7 +710,11 @@ Trả về DUY NHẤT JSON hợp lệ theo mẫu:
             if (user) {
                 headerDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
                 headerLabel.innerText = user.displayName || user.email || 'Đã đồng bộ';
-                statusText.innerHTML = `<span class="text-emerald-400 font-bold">Đã đăng nhập: ${user.email} • ☁️ Đã đồng bộ</span>`;
+                if (userNameEl) {
+                    userNameEl.innerText = `${user.displayName || 'Người dùng'} (${user.email})`;
+                    userNameEl.classList.remove('hidden');
+                }
+                statusText.innerHTML = `<span class="text-emerald-400 font-bold">☁️ Đã đồng bộ đám mây</span>`;
                 if (user.photoURL) {
                     avatar.src = user.photoURL;
                     avatar.classList.remove('hidden');
@@ -1665,7 +725,8 @@ Trả về DUY NHẤT JSON hợp lệ theo mẫu:
             } else {
                 headerDot.className = 'w-2 h-2 rounded-full bg-slate-500';
                 headerLabel.innerText = 'Đăng nhập Gmail';
-                statusText.innerText = 'Chưa đăng nhập Gmail — Dữ liệu lưu trên máy này';
+                if (userNameEl) userNameEl.classList.add('hidden');
+                statusText.innerText = 'Chưa đăng nhập Gmail — Dữ liệu hiện lưu trên thiết bị này';
                 avatar.classList.add('hidden');
                 btnIn.classList.remove('hidden');
                 btnSync.classList.add('hidden');
@@ -1679,13 +740,6 @@ Trả về DUY NHẤT JSON hợp lệ theo mẫu:
         }
 
         async function signInWithGmail() {
-            const cfg = getFirebaseConfig();
-            if (!cfg) {
-                window.switchTab('progress');
-                document.getElementById('firebase-config-box').classList.remove('hidden');
-                showToast('Hãy dán cấu hình Firebase 1 lần duy nhất để bật đăng nhập Gmail nhé!', 'warning');
-                return;
-            }
             if (!fbAuth) initializeFirebase();
             try {
                 const provider = new firebase.auth.GoogleAuthProvider();
@@ -1694,7 +748,7 @@ Trả về DUY NHẤT JSON hợp lệ theo mẫu:
                 showToast('Đăng nhập Gmail thành công!');
             } catch (err) {
                 if (err.code === 'auth/unauthorized-domain') {
-                    showToast('Cần thêm "nguyenmanhdat3090-create.github.io" vào Authorized domains trong Firebase!', 'warning');
+                    showToast('Tên miền chưa được cấp quyền trong Firebase Authentication!', 'warning');
                 } else if (err.code !== 'auth/popup-closed-by-user') {
                     showToast('Lỗi đăng nhập: ' + err.message, 'warning');
                 }
@@ -1710,7 +764,7 @@ Trả về DUY NHẤT JSON hợp lệ theo mẫu:
         async function pullFromFirebaseCloud(user) {
             if (!fbDb || !user) return;
             try {
-                const docRef = fbDb.collection('users').doc(user.uid).collection('fithome').doc('state');
+                const docRef = fbDb.collection('users').doc(user.uid);
                 const snap = await docRef.get();
                 if (snap.exists) {
                     const data = snap.data();
@@ -1744,12 +798,14 @@ Trả về DUY NHẤT JSON hợp lệ theo mẫu:
         async function pushToFirebaseCloud(silent = false) {
             if (!fbDb || !currentUser) return;
             try {
-                const docRef = fbDb.collection('users').doc(currentUser.uid).collection('fithome').doc('state');
+                const docRef = fbDb.collection('users').doc(currentUser.uid);
                 await docRef.set({
+                    email: currentUser.email || '',
+                    displayName: currentUser.displayName || '',
                     stateJson: JSON.stringify(appState),
                     geminiApiKey: localStorage.getItem(API_KEY_STORAGE) || '',
                     updatedAt: new Date().toISOString()
-                });
+                }, { merge: true });
                 if (!silent) showToast('☁️ Đã lưu toàn bộ dữ liệu lên Gmail!');
             } catch (err) {
                 if (!silent) showToast('Lỗi đồng bộ đám mây: ' + err.message, 'warning');
