@@ -623,52 +623,59 @@
                         updated = true;
                     }
                     if (updated) {
-                    if (dispEl) {
-                        const secToShow = st.mode === 'countdown' ? st.remainingSeconds : st.elapsedSeconds;
-                        dispEl.textContent = formatMMSS(secToShow);
-                        dispEl.className = st.running
-                            ? 'text-3xl sm:text-4xl font-black tracking-wider text-emerald-400 tabular-nums select-none'
-                            : 'text-3xl sm:text-4xl font-black tracking-wider text-white tabular-nums select-none';
+                        window.saveState(true);
+                        window.showToast('🍎 Đã đồng bộ bước chân & cầu thang từ iPhone!');
                     }
+                } catch (e) {
+                    console.warn('syncActivityFromUrl warning:', e);
+                }
+            };
 
-                    if (subEl) {
-                        if (st.mode === 'countdown') {
-                            subEl.textContent = st.running
-                                ? 'Đang đếm ngược...'
-                                : `Mục tiêu: ${formatMMSS(st.targetSeconds)}`;
-                        } else {
-                            subEl.textContent = st.running ? 'Đang bấm giờ...' : 'Bấm giờ tự do';
+            window.updateActivityManual = function() {
+                const steps = Math.max(0, Math.round(Number(document.getElementById('steps-input')?.value) || 0));
+                const stairs = Math.max(0, Math.round(Number(document.getElementById('stairs-input')?.value) || 0));
+                window.appState.stepsToday = steps;
+                window.appState.stairsToday = stairs;
+                window.saveState(true);
+                window.refreshUI();
+                window.showToast(`Đã cập nhật ${steps.toLocaleString('vi-VN')} bước & ${stairs} tầng cầu thang!`);
+            };
+
+            window.toggleShortcutGuide = function() {
+                const drawer = document.getElementById('iphone-shortcut-drawer');
+                if (drawer) drawer.classList.toggle('hidden');
+            };
+
+            window.appendFoodSample = function(sampleText) {
+                const input = document.getElementById('meal-story-input');
+                if (!input) return;
+                const cur = input.value.trim();
+                input.value = cur ? `${cur}, ${sampleText}` : sampleText;
+                input.focus();
+            };
+
+            window.onPhotoPicked = function(event) {
+                const file = event?.target?.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const dataUrl = String(e.target?.result || '');
+                    const commaIdx = dataUrl.indexOf(',');
+                    if (commaIdx !== -1) {
+                        const header = dataUrl.slice(0, commaIdx);
+                        const mimeMatch = header.match(/data:(.*?);base64/);
+                        window.selectedPhotoMime = mimeMatch ? mimeMatch[1] : (file.type || 'image/jpeg');
+                        window.selectedPhotoBase64 = dataUrl.slice(commaIdx + 1);
+
+                        const imgEl = document.getElementById('photo-preview-img');
+                        const placeholderEl = document.getElementById('photo-placeholder');
+                        if (imgEl) {
+                            imgEl.src = dataUrl;
+                            imgEl.classList.remove('hidden');
                         }
-                    }
-
-                    if (startBtn) {
-                        if (st.running) {
-                            startBtn.textContent = '⏸ Tạm dừng';
-                            startBtn.className = 'flex-1 sm:flex-initial bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-2 px-4 rounded-xl text-xs sm:text-sm transition-all cursor-pointer';
-                        } else {
-                            startBtn.textContent = '▶ Bắt đầu';
-                            startBtn.className = 'flex-1 sm:flex-initial bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black py-2 px-4 rounded-xl text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer';
+                        if (placeholderEl) {
+                            placeholderEl.classList.add('hidden');
                         }
-                    }
-
-                    if (modeCdBtn && modeSwBtn) {
-                        modeCdBtn.className = st.mode === 'countdown'
-                            ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-500 text-slate-950 transition-all cursor-pointer'
-                            : 'px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-white transition-all cursor-pointer';
-                        modeSwBtn.className = st.mode === 'stopwatch'
-                            ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-500 text-slate-950 transition-all cursor-pointer'
-                            : 'px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-white transition-all cursor-pointer';
-                    }
-
-                    if (presetsRow) {
-                        presetsRow.classList.toggle('hidden', st.mode !== 'countdown');
-                    }
-
-                    if (soundBtn) {
-                        soundBtn.textContent = st.soundEnabled ? '🔔 Bật' : '🔕 Tắt';
-                        soundBtn.className = st.soundEnabled
-                            ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-950 border border-emerald-500/40 text-emerald-300 cursor-pointer'
-                            : 'px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-950 border border-slate-700 text-slate-400 cursor-pointer';
                     }
                 };
                 reader.readAsDataURL(file);
