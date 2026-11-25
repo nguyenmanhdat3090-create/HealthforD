@@ -106,6 +106,193 @@
             window.selectedPhotoBase64 = '';
             window.selectedPhotoMime = 'image/jpeg';
 
+            // Workout Stopwatch & Countdown Timer State
+            window.timerState = {
+                mode: 'countdown', // 'countdown' | 'stopwatch'
+                running: false,
+                targetSeconds: 60,
+                remainingSeconds: 60,
+                elapsedSeconds: 0,
+                soundEnabled: true,
+                intervalId: null
+            };
+
+            function playTimerChime() {
+                if (!window.timerState.soundEnabled) return;
+                try {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioCtx) return;
+                    const ctx = new AudioCtx();
+                    const notes = [880, 1174.66];
+                    notes.forEach((freq, idx) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.22);
+                        gain.gain.setValueAtTime(0.001, ctx.currentTime + idx * 0.22);
+                        gain.gain.exponentialRampToValueAtTime(0.28, ctx.currentTime + idx * 0.22 + 0.03);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + idx * 0.22 + 0.45);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(ctx.currentTime + idx * 0.22);
+                        osc.stop(ctx.currentTime + idx * 0.22 + 0.48);
+                    });
+                } catch (e) {}
+            }
+
+            function formatMMSS(totalSec) {
+                const s = Math.max(0, Math.floor(Number(totalSec) || 0));
+                const mins = Math.floor(s / 60);
+                const secs = s % 60;
+                return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            }
+
+            window.updateTimerDisplay = function() {
+                const st = window.timerState;
+                const dispEl = document.getElementById('timer-digital-display');
+                const subEl = document.getElementById('timer-sub-label');
+                const startBtn = document.getElementById('btn-timer-toggle');
+                const modeCdBtn = document.getElementById('btn-timer-mode-cd');
+                const modeSwBtn = document.getElementById('btn-timer-mode-sw');
+                const presetsRow = document.getElementById('timer-presets-section');
+                const soundBtn = document.getElementById('btn-timer-sound');
+
+                if (dispEl) {
+                    const secToShow = st.mode === 'countdown' ? st.remainingSeconds : st.elapsedSeconds;
+                    dispEl.textContent = formatMMSS(secToShow);
+                    dispEl.className = st.running
+                        ? 'text-5xl sm:text-6xl font-black tracking-wider text-emerald-400 tabular-nums select-none'
+                        : 'text-5xl sm:text-6xl font-black tracking-wider text-white tabular-nums select-none';
+                }
+
+                if (subEl) {
+                    if (st.mode === 'countdown') {
+                        subEl.textContent = st.running
+                            ? 'Đang đếm ngược giữ tư thế / nghỉ...'
+                            : `Mục tiêu đếm ngược: ${formatMMSS(st.targetSeconds)}`;
+                    } else {
+                        subEl.textContent = st.running ? 'Đang bấm giờ tăng dần...' : 'Chế độ bấm giờ tự do (Stopwatch)';
+                    }
+                }
+
+                if (startBtn) {
+                    if (st.running) {
+                        startBtn.textContent = '⏸ Tạm dừng';
+                        startBtn.className = 'flex-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-3 px-5 rounded-xl text-sm transition-all cursor-pointer';
+                    } else {
+                        startBtn.textContent = '▶ Bắt đầu';
+                        startBtn.className = 'flex-1 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black py-3 px-5 rounded-xl text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer';
+                    }
+                }
+
+                if (modeCdBtn && modeSwBtn) {
+                    modeCdBtn.className = st.mode === 'countdown'
+                        ? 'px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 transition-all cursor-pointer'
+                        : 'px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all cursor-pointer';
+                    modeSwBtn.className = st.mode === 'stopwatch'
+                        ? 'px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 transition-all cursor-pointer'
+                        : 'px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all cursor-pointer';
+                }
+
+                if (presetsRow) {
+                    presetsRow.classList.toggle('hidden', st.mode !== 'countdown');
+                }
+
+                if (soundBtn) {
+                    soundBtn.textContent = st.soundEnabled ? '🔔 Chuông: Bật' : '🔕 Chuông: Tắt';
+                    soundBtn.className = st.soundEnabled
+                        ? 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-950 border border-emerald-500/40 text-emerald-300 cursor-pointer'
+                        : 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-950 border border-slate-700 text-slate-400 cursor-pointer';
+                }
+            };
+
+            window.setTimerMode = function(mode) {
+                window.pauseTimer();
+                window.timerState.mode = mode === 'stopwatch' ? 'stopwatch' : 'countdown';
+                window.updateTimerDisplay();
+            };
+
+            window.setCountdownPreset = function(seconds) {
+                window.pauseTimer();
+                const s = Math.max(1, Math.round(Number(seconds) || 60));
+                window.timerState.mode = 'countdown';
+                window.timerState.targetSeconds = s;
+                window.timerState.remainingSeconds = s;
+                const minInp = document.getElementById('timer-custom-min');
+                const secInp = document.getElementById('timer-custom-sec');
+                if (minInp) minInp.value = Math.floor(s / 60);
+                if (secInp) secInp.value = s % 60;
+                window.updateTimerDisplay();
+            };
+
+            window.applyCustomCountdown = function() {
+                const m = Math.max(0, Math.floor(Number(document.getElementById('timer-custom-min')?.value) || 0));
+                const s = Math.max(0, Math.floor(Number(document.getElementById('timer-custom-sec')?.value) || 0));
+                const total = m * 60 + s;
+                if (total <= 0) {
+                    window.showToast('Vui lòng nhập số phút hoặc giây lớn hơn 0!', 'warning');
+                    return;
+                }
+                window.setCountdownPreset(total);
+                window.showToast(`Đã đặt đếm ngược ${formatMMSS(total)}!`);
+            };
+
+            window.toggleTimerSound = function() {
+                window.timerState.soundEnabled = !window.timerState.soundEnabled;
+                if (window.timerState.soundEnabled) playTimerChime();
+                window.updateTimerDisplay();
+            };
+
+            window.pauseTimer = function() {
+                const st = window.timerState;
+                if (st.intervalId) {
+                    clearInterval(st.intervalId);
+                    st.intervalId = null;
+                }
+                st.running = false;
+                window.updateTimerDisplay();
+            };
+
+            window.toggleTimerRun = function() {
+                const st = window.timerState;
+                if (st.running) {
+                    window.pauseTimer();
+                    return;
+                }
+                if (st.mode === 'countdown' && st.remainingSeconds <= 0) {
+                    st.remainingSeconds = st.targetSeconds || 60;
+                }
+                st.running = true;
+                window.updateTimerDisplay();
+
+                st.intervalId = setInterval(() => {
+                    if (st.mode === 'countdown') {
+                        st.remainingSeconds -= 1;
+                        if (st.remainingSeconds <= 0) {
+                            st.remainingSeconds = 0;
+                            window.pauseTimer();
+                            playTimerChime();
+                            window.showToast('⏰ Hết giờ! Hoàn thành hiệp tập!');
+                            return;
+                        }
+                    } else {
+                        st.elapsedSeconds += 1;
+                    }
+                    window.updateTimerDisplay();
+                }, 1000);
+            };
+
+            window.resetTimer = function() {
+                window.pauseTimer();
+                const st = window.timerState;
+                if (st.mode === 'countdown') {
+                    st.remainingSeconds = st.targetSeconds || 60;
+                } else {
+                    st.elapsedSeconds = 0;
+                }
+                window.updateTimerDisplay();
+            };
+
             // Toast notification helper
             window.showToast = function(message, type) {
                 try {
@@ -263,6 +450,7 @@
                     window.renderMealsList();
                     window.renderProfileAndKeyUI();
                     window.renderWeightChart();
+                    window.updateTimerDisplay();
                 } catch (e) {
                     console.warn('refreshUI warning:', e);
                 }
@@ -993,6 +1181,51 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
             };
 
             // Firebase Auth & Firestore Cloud Sync
+            window.authFormMode = 'login'; // 'login' | 'register'
+
+            window.setAuthFormMode = function(mode) {
+                window.authFormMode = mode === 'register' ? 'register' : 'login';
+                const tabLogin = document.getElementById('btn-auth-tab-login');
+                const tabReg = document.getElementById('btn-auth-tab-register');
+                const submitBtn = document.getElementById('btn-email-auth-submit');
+                const nameRow = document.getElementById('auth-displayname-row');
+
+                if (tabLogin && tabReg) {
+                    tabLogin.className = window.authFormMode === 'login'
+                        ? 'flex-1 py-2 rounded-lg text-xs font-extrabold bg-emerald-500 text-slate-950 transition-all cursor-pointer'
+                        : 'flex-1 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all cursor-pointer';
+                    tabReg.className = window.authFormMode === 'register'
+                        ? 'flex-1 py-2 rounded-lg text-xs font-extrabold bg-emerald-500 text-slate-950 transition-all cursor-pointer'
+                        : 'flex-1 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all cursor-pointer';
+                }
+                if (nameRow) {
+                    nameRow.classList.toggle('hidden', window.authFormMode !== 'register');
+                }
+                if (submitBtn) {
+                    submitBtn.textContent = window.authFormMode === 'register'
+                        ? '✨ Tạo tài khoản & Đồng bộ ngay'
+                        : '🔐 Đăng nhập tài khoản';
+                }
+            };
+
+            function normalizeIdentifierToEmail(rawInput) {
+                const cleaned = String(rawInput || '').trim().toLowerCase();
+                if (!cleaned) return '';
+                if (cleaned.includes('@')) return cleaned;
+                const safeUser = cleaned.replace(/[^a-z0-9._-]/g, '');
+                return safeUser ? `${safeUser}@fithome.app` : '';
+            }
+
+            function formatDisplayAccount(user) {
+                if (!user) return '';
+                if (user.displayName) return user.displayName;
+                const em = String(user.email || '');
+                if (em.endsWith('@fithome.app')) {
+                    return em.replace('@fithome.app', '');
+                }
+                return em || 'Tài khoản';
+            }
+
             function updateAuthUI(user) {
                 window.currentUser = user || null;
                 const dot = document.getElementById('header-gmail-dot');
@@ -1000,36 +1233,42 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
                 const statusText = document.getElementById('cloud-status-text');
                 const userNameEl = document.getElementById('cloud-user-name');
                 const avatarEl = document.getElementById('progress-user-avatar');
+                const loggedOutBox = document.getElementById('auth-logged-out-panel');
+                const loggedInActions = document.getElementById('auth-logged-in-actions');
                 const btnIn = document.getElementById('btn-google-signin');
-                const btnSync = document.getElementById('btn-cloud-sync-now');
-                const btnOut = document.getElementById('btn-google-signout');
 
                 if (btnIn) btnIn.disabled = false;
 
                 if (user) {
+                    const labelName = formatDisplayAccount(user);
+                    const subEmail = String(user.email || '').endsWith('@fithome.app')
+                        ? `Tên đăng nhập: ${user.email.replace('@fithome.app', '')}`
+                        : (user.email || '');
                     if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
-                    if (lbl) lbl.textContent = user.displayName || user.email || 'Đã đồng bộ';
+                    if (lbl) lbl.textContent = labelName;
                     if (userNameEl) {
-                        userNameEl.textContent = `${user.displayName || 'Tài khoản'} (${user.email || ''})`;
+                        userNameEl.textContent = `${labelName} (${subEmail})`;
                         userNameEl.classList.remove('hidden');
                     }
-                    if (statusText) statusText.textContent = '☁️ Đã đồng bộ đám mây theo tài khoản Gmail';
-                    if (avatarEl && user.photoURL) {
-                        avatarEl.src = user.photoURL;
-                        avatarEl.classList.remove('hidden');
+                    if (statusText) statusText.textContent = '☁️ Đã bật lưu phiên dài hạn & đồng bộ đám mây';
+                    if (avatarEl) {
+                        if (user.photoURL) {
+                            avatarEl.src = user.photoURL;
+                            avatarEl.classList.remove('hidden');
+                        } else {
+                            avatarEl.classList.add('hidden');
+                        }
                     }
-                    if (btnIn) btnIn.classList.add('hidden');
-                    if (btnSync) btnSync.classList.remove('hidden');
-                    if (btnOut) btnOut.classList.remove('hidden');
+                    if (loggedOutBox) loggedOutBox.classList.add('hidden');
+                    if (loggedInActions) loggedInActions.classList.remove('hidden');
                 } else {
                     if (dot) dot.className = 'w-2 h-2 rounded-full bg-slate-500';
-                    if (lbl) lbl.textContent = 'Đăng nhập Gmail';
+                    if (lbl) lbl.textContent = 'Đăng nhập';
                     if (userNameEl) userNameEl.classList.add('hidden');
-                    if (statusText) statusText.textContent = 'Chưa đăng nhập Gmail — Dữ liệu đang lưu trên thiết bị này';
+                    if (statusText) statusText.textContent = 'Chưa đăng nhập — Dữ liệu hiện chỉ lưu trên trình duyệt này';
                     if (avatarEl) avatarEl.classList.add('hidden');
-                    if (btnIn) btnIn.classList.remove('hidden');
-                    if (btnSync) btnSync.classList.add('hidden');
-                    if (btnOut) btnOut.classList.add('hidden');
+                    if (loggedOutBox) loggedOutBox.classList.remove('hidden');
+                    if (loggedInActions) loggedInActions.classList.add('hidden');
                 }
             }
 
@@ -1047,13 +1286,14 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
                     window.fbAuth = firebase.auth();
                     window.fbDb = firebase.firestore();
 
+                    // Force persistent local session across browser closes/restarts
                     window.fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
 
                     window.fbAuth.getRedirectResult().then((res) => {
                         if (res && res.user) {
                             updateAuthUI(res.user);
                             window.pullCloudData(res.user);
-                            window.showToast('Đăng nhập Gmail thành công!');
+                            window.showToast('Đăng nhập thành công!');
                         }
                     }).catch((err) => {
                         if (err && err.code) {
@@ -1072,6 +1312,71 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
                 } catch (err) {
                     window.setAuthStatusBanner(`Lỗi khởi tạo Firebase: ${err.message}`, true);
                     return false;
+                }
+            };
+
+            window.submitEmailPasswordAuth = async function() {
+                try {
+                    if (!window.fbAuth) window.initFirebaseSafe();
+                    if (!window.fbAuth) {
+                        window.setAuthStatusBanner('Firebase Auth chưa sẵn sàng. Hãy tải lại trang.', true);
+                        return;
+                    }
+
+                    const rawId = document.getElementById('auth-identifier-input')?.value || '';
+                    const password = document.getElementById('auth-password-input')?.value || '';
+                    const displayName = (document.getElementById('auth-displayname-input')?.value || '').trim();
+                    const email = normalizeIdentifierToEmail(rawId);
+
+                    if (!email) {
+                        window.showToast('Vui lòng nhập tên đăng nhập hoặc email!', 'warning');
+                        return;
+                    }
+                    if (password.length < 6) {
+                        window.showToast('Mật khẩu cần tối thiểu 6 ký tự!', 'warning');
+                        return;
+                    }
+
+                    const btn = document.getElementById('btn-email-auth-submit');
+                    if (btn) btn.disabled = true;
+
+                    await window.fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+                    if (window.authFormMode === 'register') {
+                        const cred = await window.fbAuth.createUserWithEmailAndPassword(email, password);
+                        const chosenName = displayName || rawId.trim().split('@')[0];
+                        if (cred.user && chosenName) {
+                            await cred.user.updateProfile({ displayName: chosenName }).catch(() => {});
+                        }
+                        updateAuthUI(cred.user);
+                        await window.pushCloudData(true);
+                        window.setAuthStatusBanner('Đăng ký thành công! Tài khoản của bạn sẽ tự động giữ đăng nhập trên trình duyệt này.', false);
+                        window.showToast('🎉 Tạo tài khoản & đồng bộ thành công!');
+                    } else {
+                        const cred = await window.fbAuth.signInWithEmailAndPassword(email, password);
+                        updateAuthUI(cred.user);
+                        await window.pullCloudData(cred.user);
+                        window.showToast('Đăng nhập thành công!');
+                    }
+
+                    if (btn) btn.disabled = false;
+                } catch (err) {
+                    const btn = document.getElementById('btn-email-auth-submit');
+                    if (btn) btn.disabled = false;
+                    const code = err?.code || '';
+                    if (code === 'auth/operation-not-allowed') {
+                        window.setAuthStatusBanner(
+                            'Bạn cần bật "Email/Password" trong Firebase Console → Authentication → Sign-in method (mất 5 giây) để dùng tính năng đăng ký/đăng nhập bằng mật khẩu!',
+                            true
+                        );
+                    } else if (code === 'auth/email-already-in-use') {
+                        window.setAuthStatusBanner('Tên đăng nhập hoặc email này đã được đăng ký. Hãy chuyển sang tab "Đăng nhập"!', true);
+                    } else if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+                        window.setAuthStatusBanner('Sai tên đăng nhập/email hoặc mật khẩu. Hãy kiểm tra lại!', true);
+                    } else {
+                        window.setAuthStatusBanner(`Lỗi đăng nhập (${code}): ${err?.message || ''}`, true);
+                    }
+                    window.showToast('Không thể đăng nhập/đăng ký', 'warning');
                 }
             };
 
@@ -1147,6 +1452,8 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
 
                     const btnIn = document.getElementById('btn-google-signin');
                     if (btnIn) btnIn.disabled = true;
+
+                    await window.fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
                     const provider = new firebase.auth.GoogleAuthProvider();
                     provider.setCustomParameters({ prompt: 'select_account' });
@@ -1292,7 +1599,7 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
             <!-- Header Gmail Pill -->
             <button type="button" id="header-gmail-btn" onclick="window.handleHeaderAuthAction()" class="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer">
                 <span id="header-gmail-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
-                <span id="header-gmail-label" class="text-slate-200 max-w-[140px] truncate">Đăng nhập Gmail</span>
+                <span id="header-gmail-label" class="text-slate-200 max-w-[140px] truncate">Đăng nhập</span>
             </button>
         </div>
 
@@ -1328,6 +1635,66 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
 
         <!-- TAB 1: WORKOUT & ACTIVITY -->
         <section id="view-workout" class="space-y-6">
+            <!-- Restored Stopwatch & Countdown Timer Card -->
+            <div class="bg-slate-900 border border-emerald-500/35 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-1.5 h-6 bg-teal-400 rounded-full"></span>
+                        <h2 class="font-extrabold text-base sm:text-lg text-white">⏱️ Đồng hồ Bấm giờ & Đếm ngược Plank / Nghỉ</h2>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center gap-1">
+                            <button type="button" id="btn-timer-mode-cd" onclick="window.setTimerMode('countdown')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 transition-all cursor-pointer">
+                                Đếm ngược
+                            </button>
+                            <button type="button" id="btn-timer-mode-sw" onclick="window.setTimerMode('stopwatch')" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all cursor-pointer">
+                                Bấm giờ
+                            </button>
+                        </div>
+                        <button type="button" id="btn-timer-sound" onclick="window.toggleTimerSound()" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-950 border border-emerald-500/40 text-emerald-300 cursor-pointer">
+                            🔔 Chuông: Bật
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5">
+                    <div class="md:col-span-5 text-center md:text-left space-y-1">
+                        <div id="timer-digital-display" class="text-5xl sm:text-6xl font-black tracking-wider text-white tabular-nums select-none">01:00</div>
+                        <p id="timer-sub-label" class="text-xs text-slate-400">Mục tiêu đếm ngược: 01:00</p>
+                    </div>
+
+                    <div class="md:col-span-7 space-y-3">
+                        <div id="timer-presets-section" class="space-y-2.5">
+                            <div class="flex flex-wrap gap-1.5">
+                                <button type="button" onclick="window.setCountdownPreset(30)" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer">30s</button>
+                                <button type="button" onclick="window.setCountdownPreset(45)" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer">45s</button>
+                                <button type="button" onclick="window.setCountdownPreset(60)" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-emerald-300 cursor-pointer">60s (Plank)</button>
+                                <button type="button" onclick="window.setCountdownPreset(90)" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer">90s (Nghỉ)</button>
+                                <button type="button" onclick="window.setCountdownPreset(120)" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer">2 phút</button>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="timer-custom-min" min="0" max="99" value="1" placeholder="Phút" class="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white text-center">
+                                <span class="text-xs text-slate-400">phút</span>
+                                <input type="number" id="timer-custom-sec" min="0" max="59" value="0" placeholder="Giây" class="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white text-center">
+                                <span class="text-xs text-slate-400">giây</span>
+                                <button type="button" onclick="window.applyCustomCountdown()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-teal-300 border border-slate-700 cursor-pointer">
+                                    Đặt giờ
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2.5">
+                            <button type="button" id="btn-timer-toggle" onclick="window.toggleTimerRun()" class="flex-1 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black py-3 px-5 rounded-xl text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer">
+                                ▶ Bắt đầu
+                            </button>
+                            <button type="button" onclick="window.resetTimer()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 px-5 rounded-xl text-sm border border-slate-700 transition-all cursor-pointer">
+                                ↺ Đặt lại
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-5 shadow-xl">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <h2 class="font-extrabold text-base sm:text-lg text-white flex items-center gap-2.5">
@@ -1544,19 +1911,62 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
         <section id="view-progress" class="hidden space-y-6">
             <div class="bg-slate-900 border border-emerald-500/35 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
                 <div>
-                    <h2 class="font-extrabold text-base sm:text-lg text-white">☁️ Đồng bộ đám mây & Đăng nhập Gmail</h2>
-                    <p class="text-xs text-slate-400 mt-0.5">Đăng nhập cùng 1 Gmail để đồng bộ dữ liệu và API Key riêng tư trên mọi thiết bị</p>
+                    <h2 class="font-extrabold text-base sm:text-lg text-white">☁️ Tài khoản & Đồng bộ đám mây (Giữ đăng nhập lâu dài)</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Đăng ký bằng tên đăng nhập/mật khẩu hoặc Gmail để tự động lưu phiên đăng nhập và đồng bộ mọi thiết bị</p>
                 </div>
 
+                <!-- Current Session Bar -->
                 <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div class="flex items-center gap-3">
                         <img id="progress-user-avatar" src="" alt="Avatar" class="hidden w-10 h-10 rounded-full border border-emerald-500/50 object-cover shrink-0">
                         <div>
                             <p id="cloud-user-name" class="hidden text-sm font-bold text-white"></p>
-                            <p id="cloud-status-text" class="text-xs sm:text-sm text-slate-300 font-medium">Chưa đăng nhập Gmail — Dữ liệu đang lưu trên thiết bị này</p>
+                            <p id="cloud-status-text" class="text-xs sm:text-sm text-slate-300 font-medium">Chưa đăng nhập — Dữ liệu hiện chỉ lưu trên trình duyệt này</p>
                         </div>
                     </div>
-                    <div class="flex flex-wrap items-center gap-2 shrink-0">
+                    <div id="auth-logged-in-actions" class="hidden flex flex-wrap items-center gap-2 shrink-0">
+                        <button type="button" id="btn-cloud-sync-now" onclick="window.pushCloudData(false)" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-xl transition-all cursor-pointer">
+                            🔄 Đồng bộ ngay
+                        </button>
+                        <button type="button" id="btn-google-signout" onclick="window.logoutGmail()" class="bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 transition-all cursor-pointer">
+                            Đăng xuất
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Login / Register Panel (Shown when signed out) -->
+                <div id="auth-logged-out-panel" class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-4">
+                    <div class="flex bg-slate-900 p-1 rounded-xl border border-slate-800 max-w-xs">
+                        <button type="button" id="btn-auth-tab-login" onclick="window.setAuthFormMode('login')" class="flex-1 py-2 rounded-lg text-xs font-extrabold bg-emerald-500 text-slate-950 transition-all cursor-pointer">
+                            Đăng nhập
+                        </button>
+                        <button type="button" id="btn-auth-tab-register" onclick="window.setAuthFormMode('register')" class="flex-1 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all cursor-pointer">
+                            Đăng ký mới
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                        <div id="auth-displayname-row" class="hidden sm:col-span-3">
+                            <label class="block text-xs text-slate-400 mb-1">Tên hiển thị</label>
+                            <input type="text" id="auth-displayname-input" placeholder="Ví dụ: Đạt" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                        </div>
+                        <div class="sm:col-span-4">
+                            <label class="block text-xs text-slate-400 mb-1">Tên đăng nhập hoặc Email</label>
+                            <input type="text" id="auth-identifier-input" placeholder="vd: dat3090 hoặc email" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                        </div>
+                        <div class="sm:col-span-4">
+                            <label class="block text-xs text-slate-400 mb-1">Mật khẩu (từ 6 ký tự)</label>
+                            <input type="password" id="auth-password-input" placeholder="••••••" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                        </div>
+                        <div class="sm:col-span-4">
+                            <button type="button" id="btn-email-auth-submit" onclick="window.submitEmailPasswordAuth()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2.5 px-4 rounded-xl text-xs sm:text-sm transition-all cursor-pointer">
+                                🔐 Đăng nhập tài khoản
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/80">
+                        <span class="text-xs text-slate-400">Hoặc đăng nhập nhanh bằng tài khoản Google:</span>
                         <button type="button" id="btn-google-signin" onclick="window.signInWithGmail()" class="bg-white hover:bg-slate-100 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all cursor-pointer">
                             <svg class="w-4 h-4" viewBox="0 0 24 24">
                                 <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.8C6.2 7.2 8.9 5 12 5z"/>
@@ -1565,12 +1975,6 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
                                 <path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.1-6.7-5l-3.7 2.8C3.5 21.1 7.4 24 12 24z"/>
                             </svg>
                             Đăng nhập bằng Gmail
-                        </button>
-                        <button type="button" id="btn-cloud-sync-now" onclick="window.pushCloudData(false)" class="hidden bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-xl transition-all cursor-pointer">
-                            🔄 Đồng bộ ngay
-                        </button>
-                        <button type="button" id="btn-google-signout" onclick="window.logoutGmail()" class="hidden bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 transition-all cursor-pointer">
-                            Đăng xuất
                         </button>
                     </div>
                 </div>
