@@ -161,27 +161,27 @@
                     const secToShow = st.mode === 'countdown' ? st.remainingSeconds : st.elapsedSeconds;
                     dispEl.textContent = formatMMSS(secToShow);
                     dispEl.className = st.running
-                        ? 'text-5xl sm:text-6xl font-black tracking-wider text-emerald-400 tabular-nums select-none'
-                        : 'text-5xl sm:text-6xl font-black tracking-wider text-white tabular-nums select-none';
+                        ? 'text-4xl sm:text-5xl font-black tracking-wider text-emerald-400 tabular-nums select-none'
+                        : 'text-4xl sm:text-5xl font-black tracking-wider text-white tabular-nums select-none';
                 }
 
                 if (subEl) {
                     if (st.mode === 'countdown') {
                         subEl.textContent = st.running
                             ? 'Đang đếm ngược giữ tư thế / nghỉ...'
-                            : `Mục tiêu đếm ngược: ${formatMMSS(st.targetSeconds)}`;
+                            : `Mục tiêu: ${formatMMSS(st.targetSeconds)}`;
                     } else {
-                        subEl.textContent = st.running ? 'Đang bấm giờ tăng dần...' : 'Chế độ bấm giờ tự do (Stopwatch)';
+                        subEl.textContent = st.running ? 'Đang bấm giờ tăng dần...' : 'Chế độ bấm giờ tự do';
                     }
                 }
 
                 if (startBtn) {
                     if (st.running) {
                         startBtn.textContent = '⏸ Tạm dừng';
-                        startBtn.className = 'flex-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-3 px-5 rounded-xl text-sm transition-all cursor-pointer';
+                        startBtn.className = 'flex-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-2.5 px-4 rounded-xl text-xs sm:text-sm transition-all cursor-pointer';
                     } else {
                         startBtn.textContent = '▶ Bắt đầu';
-                        startBtn.className = 'flex-1 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black py-3 px-5 rounded-xl text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer';
+                        startBtn.className = 'flex-1 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black py-2.5 px-4 rounded-xl text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer';
                     }
                 }
 
@@ -623,52 +623,52 @@
                         updated = true;
                     }
                     if (updated) {
-                        window.saveState(true);
-                        window.showToast(`Đã nhận dữ liệu iPhone: ${window.appState.stepsToday} bước, ${window.appState.stairsToday} tầng!`);
+                    if (dispEl) {
+                        const secToShow = st.mode === 'countdown' ? st.remainingSeconds : st.elapsedSeconds;
+                        dispEl.textContent = formatMMSS(secToShow);
+                        dispEl.className = st.running
+                            ? 'text-3xl sm:text-4xl font-black tracking-wider text-emerald-400 tabular-nums select-none'
+                            : 'text-3xl sm:text-4xl font-black tracking-wider text-white tabular-nums select-none';
                     }
-                } catch (e) {}
-            };
 
-            window.updateActivityManual = function() {
-                const stepsVal = Math.max(0, Math.round(Number(document.getElementById('steps-input')?.value) || 0));
-                const stairsVal = Math.max(0, Math.round(Number(document.getElementById('stairs-input')?.value) || 0));
-                window.appState.stepsToday = stepsVal;
-                window.appState.stairsToday = stairsVal;
-                window.saveState(true);
-                window.refreshUI();
-                window.showToast(`Đã cập nhật ${stepsVal.toLocaleString('vi-VN')} bước & ${stairsVal} tầng!`);
-            };
-
-            window.toggleShortcutGuide = function() {
-                const el = document.getElementById('iphone-shortcut-drawer');
-                if (el) el.classList.toggle('hidden');
-            };
-
-            // Nutrition & Gemini AI
-            window.appendFoodSample = function(text) {
-                const ta = document.getElementById('meal-story-input');
-                if (!ta) return;
-                ta.value = ta.value.trim() ? `${ta.value.trim()}, ${text}` : text;
-                ta.focus();
-            };
-
-            window.onPhotoPicked = function(event) {
-                const file = event && event.target && event.target.files && event.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const dataUrl = String(e.target.result || '');
-                    const parts = dataUrl.split(',');
-                    if (parts.length === 2) {
-                        window.selectedPhotoBase64 = parts[1];
-                        window.selectedPhotoMime = file.type || 'image/jpeg';
-                        const img = document.getElementById('photo-preview-img');
-                        const ph = document.getElementById('photo-placeholder');
-                        if (img) {
-                            img.src = dataUrl;
-                            img.classList.remove('hidden');
+                    if (subEl) {
+                        if (st.mode === 'countdown') {
+                            subEl.textContent = st.running
+                                ? 'Đang đếm ngược...'
+                                : `Mục tiêu: ${formatMMSS(st.targetSeconds)}`;
+                        } else {
+                            subEl.textContent = st.running ? 'Đang bấm giờ...' : 'Bấm giờ tự do';
                         }
-                        if (ph) ph.classList.add('hidden');
+                    }
+
+                    if (startBtn) {
+                        if (st.running) {
+                            startBtn.textContent = '⏸ Tạm dừng';
+                            startBtn.className = 'flex-1 sm:flex-initial bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-2 px-4 rounded-xl text-xs sm:text-sm transition-all cursor-pointer';
+                        } else {
+                            startBtn.textContent = '▶ Bắt đầu';
+                            startBtn.className = 'flex-1 sm:flex-initial bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black py-2 px-4 rounded-xl text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer';
+                        }
+                    }
+
+                    if (modeCdBtn && modeSwBtn) {
+                        modeCdBtn.className = st.mode === 'countdown'
+                            ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-500 text-slate-950 transition-all cursor-pointer'
+                            : 'px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-white transition-all cursor-pointer';
+                        modeSwBtn.className = st.mode === 'stopwatch'
+                            ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-500 text-slate-950 transition-all cursor-pointer'
+                            : 'px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-white transition-all cursor-pointer';
+                    }
+
+                    if (presetsRow) {
+                        presetsRow.classList.toggle('hidden', st.mode !== 'countdown');
+                    }
+
+                    if (soundBtn) {
+                        soundBtn.textContent = st.soundEnabled ? '🔔 Bật' : '🔕 Tắt';
+                        soundBtn.className = st.soundEnabled
+                            ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-950 border border-emerald-500/40 text-emerald-300 cursor-pointer'
+                            : 'px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-950 border border-slate-700 text-slate-400 cursor-pointer';
                     }
                 };
                 reader.readAsDataURL(file);
@@ -1213,15 +1213,15 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
                 if (!cleaned) return '';
                 if (cleaned.includes('@')) return cleaned;
                 const safeUser = cleaned.replace(/[^a-z0-9._-]/g, '');
-                return safeUser ? `${safeUser}@fithome.app` : '';
+                return safeUser ? `${safeUser}@fithome.local` : '';
             }
 
             function formatDisplayAccount(user) {
                 if (!user) return '';
                 if (user.displayName) return user.displayName;
                 const em = String(user.email || '');
-                if (em.endsWith('@fithome.app')) {
-                    return em.replace('@fithome.app', '');
+                if (em.endsWith('@fithome.local')) {
+                    return em.replace('@fithome.local', '');
                 }
                 return em || 'Tài khoản';
             }
@@ -1241,8 +1241,8 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
 
                 if (user) {
                     const labelName = formatDisplayAccount(user);
-                    const subEmail = String(user.email || '').endsWith('@fithome.app')
-                        ? `Tên đăng nhập: ${user.email.replace('@fithome.app', '')}`
+                    const subEmail = String(user.email || '').endsWith('@fithome.local')
+                        ? `Tên đăng nhập: ${user.email.replace('@fithome.local', '')}`
                         : (user.email || '');
                     if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
                     if (lbl) lbl.textContent = labelName;
@@ -1567,8 +1567,8 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
     <!-- Toast Container -->
     <div id="toast-container" class="fixed top-4 right-4 z-[60] flex flex-col gap-2 max-w-xs w-full pointer-events-none"></div>
 
-    <!-- Top Header -->
-    <header class="sticky top-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-slate-800">
+    <!-- Top Header (Scrolls away naturally to maximize screen space) -->
+    <header class="bg-slate-950 border-b border-slate-800">
         <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/20 shrink-0 font-black">
@@ -1635,62 +1635,60 @@ Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả t
 
         <!-- TAB 1: WORKOUT & ACTIVITY -->
         <section id="view-workout" class="space-y-6">
-            <!-- Restored Stopwatch & Countdown Timer Card -->
-            <div class="bg-slate-900 border border-emerald-500/35 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+            <!-- Sticky Floating Stopwatch & Countdown Timer Card -->
+            <div class="sticky top-2 z-40 bg-slate-900/95 backdrop-blur-md border border-emerald-500/45 rounded-2xl p-3 sm:p-4 space-y-2.5 shadow-2xl shadow-slate-950/80">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                    <div class="flex items-center gap-2.5">
-                        <span class="w-1.5 h-6 bg-teal-400 rounded-full"></span>
-                        <h2 class="font-extrabold text-base sm:text-lg text-white">⏱️ Đồng hồ Bấm giờ & Đếm ngược Plank / Nghỉ</h2>
-                    </div>
                     <div class="flex items-center gap-2">
-                        <div class="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center gap-1">
-                            <button type="button" id="btn-timer-mode-cd" onclick="window.setTimerMode('countdown')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 transition-all cursor-pointer">
+                        <span class="w-1.5 h-4 bg-teal-400 rounded-full"></span>
+                        <h2 class="font-extrabold text-xs sm:text-sm text-white">⏱️ Đồng hồ Plank & Nghỉ giữa hiệp</h2>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <div class="bg-slate-950 p-0.5 rounded-xl border border-slate-800 flex items-center gap-1">
+                            <button type="button" id="btn-timer-mode-cd" onclick="window.setTimerMode('countdown')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-500 text-slate-950 transition-all cursor-pointer">
                                 Đếm ngược
                             </button>
-                            <button type="button" id="btn-timer-mode-sw" onclick="window.setTimerMode('stopwatch')" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all cursor-pointer">
+                            <button type="button" id="btn-timer-mode-sw" onclick="window.setTimerMode('stopwatch')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-white transition-all cursor-pointer">
                                 Bấm giờ
                             </button>
                         </div>
-                        <button type="button" id="btn-timer-sound" onclick="window.toggleTimerSound()" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-950 border border-emerald-500/40 text-emerald-300 cursor-pointer">
-                            🔔 Chuông: Bật
+                        <button type="button" id="btn-timer-sound" onclick="window.toggleTimerSound()" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-950 border border-emerald-500/40 text-emerald-300 cursor-pointer">
+                            🔔 Bật
                         </button>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5">
-                    <div class="md:col-span-5 text-center md:text-left space-y-1">
-                        <div id="timer-digital-display" class="text-5xl sm:text-6xl font-black tracking-wider text-white tabular-nums select-none">01:00</div>
-                        <p id="timer-sub-label" class="text-xs text-slate-400">Mục tiêu đếm ngược: 01:00</p>
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/90 border border-slate-800 rounded-xl px-3.5 py-2.5">
+                    <div class="flex items-baseline justify-between sm:justify-start gap-3">
+                        <div id="timer-digital-display" class="text-3xl sm:text-4xl font-black tracking-wider text-white tabular-nums select-none">01:00</div>
+                        <p id="timer-sub-label" class="text-[11px] text-slate-400">Mục tiêu: 01:00</p>
                     </div>
 
-                    <div class="md:col-span-7 space-y-3">
-                        <div id="timer-presets-section" class="space-y-2.5">
-                            <div class="flex flex-wrap gap-1.5">
-                                <button type="button" onclick="window.setCountdownPreset(30)" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer">30s</button>
-                                <button type="button" onclick="window.setCountdownPreset(45)" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer">45s</button>
-                                <button type="button" onclick="window.setCountdownPreset(60)" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-emerald-300 cursor-pointer">60s (Plank)</button>
-                                <button type="button" onclick="window.setCountdownPreset(90)" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer">90s (Nghỉ)</button>
-                                <button type="button" onclick="window.setCountdownPreset(120)" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer">2 phút</button>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <input type="number" id="timer-custom-min" min="0" max="99" value="1" placeholder="Phút" class="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white text-center">
-                                <span class="text-xs text-slate-400">phút</span>
-                                <input type="number" id="timer-custom-sec" min="0" max="59" value="0" placeholder="Giây" class="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white text-center">
-                                <span class="text-xs text-slate-400">giây</span>
-                                <button type="button" onclick="window.applyCustomCountdown()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-teal-300 border border-slate-700 cursor-pointer">
-                                    Đặt giờ
-                                </button>
-                            </div>
-                        </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="btn-timer-toggle" onclick="window.toggleTimerRun()" class="flex-1 sm:flex-initial bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black py-2 px-4 rounded-xl text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer">
+                            ▶ Bắt đầu
+                        </button>
+                        <button type="button" onclick="window.resetTimer()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 px-3.5 rounded-xl text-xs sm:text-sm border border-slate-700 transition-all cursor-pointer">
+                            ↺ Đặt lại
+                        </button>
+                    </div>
+                </div>
 
-                        <div class="flex items-center gap-2.5">
-                            <button type="button" id="btn-timer-toggle" onclick="window.toggleTimerRun()" class="flex-1 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black py-3 px-5 rounded-xl text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer">
-                                ▶ Bắt đầu
-                            </button>
-                            <button type="button" onclick="window.resetTimer()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 px-5 rounded-xl text-sm border border-slate-700 transition-all cursor-pointer">
-                                ↺ Đặt lại
-                            </button>
-                        </div>
+                <div id="timer-presets-section" class="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                    <div class="flex flex-wrap gap-1">
+                        <button type="button" onclick="window.setCountdownPreset(30)" class="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-700 text-[11px] font-bold text-slate-200 cursor-pointer">30s</button>
+                        <button type="button" onclick="window.setCountdownPreset(45)" class="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-700 text-[11px] font-bold text-slate-200 cursor-pointer">45s</button>
+                        <button type="button" onclick="window.setCountdownPreset(60)" class="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-700 text-[11px] font-bold text-emerald-300 cursor-pointer">60s</button>
+                        <button type="button" onclick="window.setCountdownPreset(90)" class="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-700 text-[11px] font-bold text-slate-200 cursor-pointer">90s</button>
+                        <button type="button" onclick="window.setCountdownPreset(120)" class="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-700 text-[11px] font-bold text-slate-200 cursor-pointer">2p</button>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <input type="number" id="timer-custom-min" min="0" max="99" value="1" placeholder="Phút" class="w-14 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white text-center">
+                        <span class="text-[11px] text-slate-400">p</span>
+                        <input type="number" id="timer-custom-sec" min="0" max="59" value="0" placeholder="Giây" class="w-14 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white text-center">
+                        <span class="text-[11px] text-slate-400">s</span>
+                        <button type="button" onclick="window.applyCustomCountdown()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-teal-300 border border-slate-700 cursor-pointer">
+                            Đặt
+                        </button>
                     </div>
                 </div>
             </div>
