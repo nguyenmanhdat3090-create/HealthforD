@@ -4,78 +4,1217 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>FitHome AI - Tập luyện Đốt mỡ & Dinh dưỡng Cá nhân hóa</title>
-    <!-- iPhone PWA & Home Screen Meta Tags -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="FitHome AI">
     <meta name="theme-color" content="#020617">
 
-    <!-- Tailwind CSS CDN -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-    <!-- Firebase Compat SDKs (Safe for static GitHub Pages) -->
+    <!-- Firebase Compat SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
-    <!-- Early Safe Tab Switcher (Works immediately even before external scripts load) -->
+    <!-- Core Global State & Functions Defined Immediately Before DOM -->
     <script>
-        window.switchTab = function(tabName) {
-            var tabs = ['workout', 'nutrition', 'progress'];
-            for (var i = 0; i < tabs.length; i++) {
-                var t = tabs[i];
-                var view = document.getElementById('view-' + t);
-                var deskBtn = document.getElementById('tab-desk-' + t);
-                var mobBtn = document.getElementById('tab-mob-' + t);
+        (function() {
+            const DEFAULT_FIREBASE_CONFIG = {
+                apiKey: "AIzaSyCVRJoUY4KiyO5C_Kc7gRcAIHY51ppsQ8s",
+                authDomain: "fithome-7b19a.firebaseapp.com",
+                projectId: "fithome-7b19a",
+                storageBucket: "fithome-7b19a.firebasestorage.app",
+                messagingSenderId: "698950998679",
+                appId: "1:698950998679:web:e8cb3a1f0a399a6399e7d2",
+                measurementId: "G-LKCMMZW8NM"
+            };
 
-                if (view) {
-                    if (t === tabName) {
-                        view.classList.remove('hidden');
-                        view.style.display = 'block';
-                    } else {
-                        view.classList.add('hidden');
-                        view.style.display = 'none';
-                    }
-                }
+            const STORAGE_KEY = 'fithome_ai_state_v5';
+            const API_KEY_STORAGE = 'fithome_gemini_api_key';
 
-                if (deskBtn) {
-                    if (t === tabName) {
-                        deskBtn.className = 'nav-tab-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20';
-                        deskBtn.style.backgroundColor = '#10b981';
-                        deskBtn.style.color = '#020617';
-                    } else {
-                        deskBtn.className = 'nav-tab-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-all';
-                        deskBtn.style.backgroundColor = 'transparent';
-                        deskBtn.style.color = '#94a3b8';
-                    }
-                }
+            window.DEFAULT_FIREBASE_CONFIG = DEFAULT_FIREBASE_CONFIG;
+            window.STORAGE_KEY = STORAGE_KEY;
+            window.API_KEY_STORAGE = API_KEY_STORAGE;
 
-                if (mobBtn) {
-                    if (t === tabName) {
-                        mobBtn.className = 'nav-tab-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/15 font-bold';
-                        mobBtn.style.color = '#34d399';
-                    } else {
-                        mobBtn.className = 'nav-tab-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 font-medium';
-                        mobBtn.style.color = '#94a3b8';
+            window.currentUser = null;
+            window.fbApp = null;
+            window.fbAuth = null;
+            window.fbDb = null;
+
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            const createDefaultState = () => ({
+                dateStr: todayStr,
+                currentWeight: 71,
+                startWeight: 71,
+                targetWeight: 66,
+                heightCm: 172,
+                age: 24,
+                dailyCalorieTarget: 1850,
+                dailyProteinTarget: 142,
+                todayCalories: 0,
+                todayProtein: 0,
+                burnedCalories: 0,
+                workoutBurnedCalories: 0,
+                stepsToday: 0,
+                stairsToday: 0,
+                awayMode: false,
+                durationMin: 30,
+                intensity: 'standard',
+                equipment: { mat: true, dumbbell: true, pullup: true },
+                meals: [],
+                workouts: [],
+                weightHistory: [{ date: 'Hôm nay', weight: 71 }]
+            });
+
+            function loadLocalStateSafe() {
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (!raw) return createDefaultState();
+                    const parsed = JSON.parse(raw);
+                    const base = createDefaultState();
+                    const merged = {
+                        ...base,
+                        ...parsed,
+                        equipment: { ...base.equipment, ...(parsed.equipment || {}) },
+                        meals: Array.isArray(parsed.meals) ? parsed.meals : [],
+                        workouts: Array.isArray(parsed.workouts) ? parsed.workouts : [],
+                        weightHistory: Array.isArray(parsed.weightHistory) && parsed.weightHistory.length > 0
+                            ? parsed.weightHistory
+                            : base.weightHistory
+                    };
+                    if (merged.dateStr !== todayStr) {
+                        merged.dateStr = todayStr;
+                        merged.todayCalories = 0;
+                        merged.todayProtein = 0;
+                        merged.burnedCalories = 0;
+                        merged.workoutBurnedCalories = 0;
+                        merged.stepsToday = 0;
+                        merged.stairsToday = 0;
+                        merged.meals = [];
                     }
+                    return merged;
+                } catch (e) {
+                    return createDefaultState();
                 }
             }
-            if (tabName === 'progress' && typeof window.renderWeightChart === 'function') {
-                setTimeout(window.renderWeightChart, 50);
-            }
-        };
 
-        document.addEventListener('DOMContentLoaded', function() {
-            var btns = document.querySelectorAll('.nav-tab-btn');
-            for (var i = 0; i < btns.length; i++) {
-                btns[i].addEventListener('click', function(e) {
-                    e.preventDefault();
-                    var target = this.getAttribute('data-tab');
-                    if (target) window.switchTab(target);
+            window.appState = loadLocalStateSafe();
+            window.pendingMealItems = [];
+            window.selectedPhotoBase64 = '';
+            window.selectedPhotoMime = 'image/jpeg';
+
+            // Toast notification helper
+            window.showToast = function(message, type) {
+                try {
+                    const container = document.getElementById('toast-container');
+                    if (!container) return;
+                    const el = document.createElement('div');
+                    const isWarn = type === 'warning';
+                    el.className = `pointer-events-auto px-4 py-3 rounded-xl text-xs font-bold shadow-xl border transition-all ${
+                        isWarn
+                            ? 'bg-amber-950/95 border-amber-500/50 text-amber-200'
+                            : 'bg-slate-900/95 border-emerald-500/50 text-emerald-200'
+                    }`;
+                    el.textContent = message;
+                    container.appendChild(el);
+                    setTimeout(() => {
+                        el.style.opacity = '0';
+                        setTimeout(() => el.remove(), 250);
+                    }, 3400);
+                } catch (e) {
+                    // Ignore UI toast failures
+                }
+            };
+
+            window.setAuthStatusBanner = function(text, isError) {
+                try {
+                    const banner = document.getElementById('auth-status-banner');
+                    if (!banner) return;
+                    banner.textContent = text;
+                    banner.classList.remove('hidden');
+                    banner.className = isError
+                        ? 'rounded-xl p-3 text-xs leading-relaxed bg-rose-950/80 border border-rose-500/40 text-rose-200'
+                        : 'rounded-xl p-3 text-xs leading-relaxed bg-slate-950 border border-emerald-500/30 text-emerald-200';
+                } catch (e) {}
+            };
+
+            // Save state locally and sync to Firestore if signed in
+            window.saveState = function(syncCloud) {
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(window.appState));
+                } catch (e) {}
+                if (syncCloud !== false && window.currentUser && window.fbDb) {
+                    window.pushCloudData(true);
+                }
+            };
+
+            // Tab switcher
+            window.switchTab = function(tabName) {
+                const validTabs = ['workout', 'nutrition', 'progress'];
+                const target = validTabs.includes(tabName) ? tabName : 'workout';
+
+                for (let i = 0; i < validTabs.length; i++) {
+                    const t = validTabs[i];
+                    const section = document.getElementById('view-' + t);
+                    const deskBtn = document.getElementById('tab-desk-' + t);
+                    const mobBtn = document.getElementById('tab-mob-' + t);
+
+                    if (section) {
+                        if (t === target) {
+                            section.classList.remove('hidden');
+                            section.style.display = 'block';
+                        } else {
+                            section.classList.add('hidden');
+                            section.style.display = 'none';
+                        }
+                    }
+
+                    if (deskBtn) {
+                        if (t === target) {
+                            deskBtn.className = 'nav-tab-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20';
+                        } else {
+                            deskBtn.className = 'nav-tab-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-all';
+                        }
+                    }
+
+                    if (mobBtn) {
+                        if (t === target) {
+                            mobBtn.className = 'nav-tab-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/15 font-bold';
+                        } else {
+                            mobBtn.className = 'nav-tab-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 font-medium';
+                        }
+                    }
+                }
+
+                if (target === 'progress' && typeof window.renderWeightChart === 'function') {
+                    setTimeout(window.renderWeightChart, 40);
+                }
+            };
+
+            // Recalculate summary counters & UI
+            window.refreshUI = function() {
+                try {
+                    const s = window.appState;
+                    const activityBurn = Math.round((Number(s.stepsToday) || 0) * 0.04 + (Number(s.stairsToday) || 0) * 3.5);
+                    const workoutBurn = Number(s.workoutBurnedCalories) || 0;
+                    const totalBurned = activityBurn + workoutBurn;
+                    s.burnedCalories = totalBurned;
+
+                    const eatenCal = Math.round(Number(s.todayCalories) || 0);
+                    const eatenPro = Math.round(Number(s.todayProtein) || 0);
+                    const targetCal = Number(s.dailyCalorieTarget) || 1850;
+                    const targetPro = Number(s.dailyProteinTarget) || 142;
+                    const remainingCal = targetCal - eatenCal + totalBurned;
+
+                    const diffWeight = ((Number(s.targetWeight) || 66) - (Number(s.currentWeight) || 71)).toFixed(1);
+                    const sign = Number(diffWeight) > 0 ? '+' : '';
+                    const subEl = document.getElementById('header-goal-subtitle');
+                    if (subEl) {
+                        subEl.textContent = `Mục tiêu: ${Number(s.currentWeight).toFixed(1)}kg → ${Number(s.targetWeight).toFixed(1)}kg (${sign}${diffWeight}kg)`;
+                    }
+
+                    const awayBadge = document.getElementById('away-badge');
+                    if (awayBadge) {
+                        awayBadge.classList.toggle('hidden', !s.awayMode);
+                    }
+
+                    const setText = (id, val) => {
+                        const el = document.getElementById(id);
+                        if (el) el.textContent = val;
+                    };
+
+                    setText('strip-target-cal', `${targetCal.toLocaleString('vi-VN')} kcal`);
+                    setText('strip-eaten-cal', `${eatenCal.toLocaleString('vi-VN')} kcal`);
+                    setText('strip-burned-cal', `+${totalBurned.toLocaleString('vi-VN')} kcal`);
+                    setText('strip-protein', `${eatenPro} / ${targetPro}g`);
+
+                    const remEl = document.getElementById('strip-remaining-cal');
+                    if (remEl) {
+                        remEl.textContent = `${remainingCal.toLocaleString('vi-VN')} kcal`;
+                        remEl.className = remainingCal >= 0
+                            ? 'font-black text-sm sm:text-base text-emerald-400'
+                            : 'font-black text-sm sm:text-base text-rose-400';
+                    }
+
+                    const estBurn = window.estimateWorkoutBurn();
+                    setText('workout-est-badge', `Ước tính đốt: ~${estBurn} kcal`);
+                    setText('complete-session-kcal', `${estBurn} kcal`);
+                    setText('activity-kcal-badge', `${activityBurn} kcal`);
+
+                    const durSlider = document.getElementById('duration-slider');
+                    const durVal = document.getElementById('duration-val');
+                    if (durSlider) durSlider.value = s.durationMin;
+                    if (durVal) durVal.textContent = s.durationMin;
+
+                    const stepsInput = document.getElementById('steps-input');
+                    const stairsInput = document.getElementById('stairs-input');
+                    if (stepsInput && document.activeElement !== stepsInput) {
+                        stepsInput.value = s.stepsToday || '';
+                    }
+                    if (stairsInput && document.activeElement !== stairsInput) {
+                        stairsInput.value = s.stairsToday || '';
+                    }
+
+                    window.updateWorkoutOptionStyles();
+                    window.renderWorkoutList();
+                    window.renderMealsList();
+                    window.renderProfileAndKeyUI();
+                    window.renderWeightChart();
+                } catch (e) {
+                    console.warn('refreshUI warning:', e);
+                }
+            };
+
+            // Workout calculator & options
+            window.estimateWorkoutBurn = function() {
+                const s = window.appState;
+                const mins = Number(s.durationMin) || 30;
+                const factorMap = { light: 6.2, standard: 8.8, hiit: 11.5 };
+                const rate = factorMap[s.intensity] || 8.8;
+                const weightFactor = (Number(s.currentWeight) || 71) / 70;
+                return Math.round(mins * rate * weightFactor);
+            };
+
+            window.onDurationChange = function(val) {
+                window.appState.durationMin = Number(val) || 30;
+                window.saveState(false);
+                window.refreshUI();
+            };
+
+            window.setIntensity = function(mode) {
+                window.appState.intensity = ['light', 'standard', 'hiit'].includes(mode) ? mode : 'standard';
+                window.saveState(false);
+                window.refreshUI();
+            };
+
+            window.toggleEquipment = function(key) {
+                if (!window.appState.equipment) window.appState.equipment = { mat: true, dumbbell: true, pullup: true };
+                window.appState.equipment[key] = !window.appState.equipment[key];
+                if (window.appState.equipment[key]) {
+                    window.appState.awayMode = false;
+                }
+                window.saveState(false);
+                window.refreshUI();
+            };
+
+            window.toggleAwayMode = function() {
+                window.appState.awayMode = !window.appState.awayMode;
+                if (window.appState.awayMode) {
+                    window.appState.equipment = { mat: false, dumbbell: false, pullup: false };
+                } else {
+                    window.appState.equipment = { mat: true, dumbbell: true, pullup: true };
+                }
+                window.saveState(false);
+                window.refreshUI();
+            };
+
+            window.updateWorkoutOptionStyles = function() {
+                const s = window.appState;
+                ['light', 'standard', 'hiit'].forEach((m) => {
+                    const btn = document.getElementById('btn-int-' + m);
+                    if (!btn) return;
+                    btn.className = (s.intensity === m)
+                        ? 'py-2.5 px-2 rounded-xl text-xs font-bold border border-emerald-500 bg-emerald-500/15 text-emerald-400 transition-all'
+                        : 'py-2.5 px-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-950 text-slate-300 transition-all';
                 });
+
+                ['mat', 'dumbbell', 'pullup'].forEach((eq) => {
+                    const btn = document.getElementById('btn-eq-' + eq);
+                    if (!btn) return;
+                    const active = !!(s.equipment && s.equipment[eq]);
+                    btn.className = active
+                        ? 'py-2.5 px-2 rounded-xl text-xs font-bold border border-emerald-500 bg-emerald-500/15 text-emerald-400 transition-all'
+                        : 'py-2.5 px-2 rounded-xl text-xs font-semibold border border-slate-800 bg-slate-950/60 text-slate-500 transition-all';
+                });
+
+                const awayBtn = document.getElementById('btn-away-toggle');
+                if (awayBtn) {
+                    awayBtn.className = s.awayMode
+                        ? 'text-[11px] font-bold px-2.5 py-1 rounded-lg border border-amber-400 bg-amber-500/25 text-amber-200 transition-all'
+                        : 'text-[11px] font-bold px-2.5 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition-all';
+                }
+            };
+
+            window.buildExercisesForCurrentSettings = function() {
+                const s = window.appState;
+                const mins = Number(s.durationMin) || 30;
+                const eq = s.equipment || {};
+                const list = [
+                    { name: 'Khởi động khớp & Jumping Jack nhẹ', sets: '2 hiệp x 45s', tag: 'Khởi động', kcal: Math.round(mins * 1.1) },
+                    { name: 'Plank giữ thẳng lưng & siết cơ bụng', sets: '3 hiệp x 45-60s', tag: 'Core / Eo', kcal: Math.round(mins * 1.4) },
+                    { name: 'Side Plank (Nghiêng người siết cơ liên sườn)', sets: '2 hiệp x 30s mỗi bên', tag: 'Giảm mỡ sườn', kcal: Math.round(mins * 1.2) },
+                    { name: 'Burpee hoặc Mountain Climbers đốt mỡ toàn thân', sets: '3 hiệp x 35-45s', tag: 'Đốt mỡ cao', kcal: Math.round(mins * 2.1) }
+                ];
+
+                if (!s.awayMode && eq.dumbbell) {
+                    list.push({ name: 'Goblet Squat hoặc Dumbbell Row (Tạ đơn 15kg)', sets: '3 hiệp x 12-15 lần', tag: 'Tạ đơn 15kg', kcal: Math.round(mins * 1.8) });
+                } else {
+                    list.push({ name: 'Squat bật nhảy hoặc Chùng chân (Lunges)', sets: '3 hiệp x 14 lần', tag: 'Không tạ', kcal: Math.round(mins * 1.6) });
+                }
+
+                if (!s.awayMode && eq.pullup) {
+                    list.push({ name: 'Hít xà đơn / Treo người kéo gối lên ngực', sets: '3 hiệp x 6-10 lần', tag: 'Xà đơn', kcal: Math.round(mins * 1.5) });
+                } else {
+                    list.push({ name: 'Hít đất (Push-up) hoặc Superman siết lưng', sets: '3 hiệp x 10-15 lần', tag: 'Thảm sàn', kcal: Math.round(mins * 1.3) });
+                }
+
+                return list;
+            };
+
+            window.generateWorkoutPlan = function(showMsg) {
+                window.appState.workouts = window.buildExercisesForCurrentSettings();
+                window.saveState(false);
+                window.renderWorkoutList();
+                if (showMsg) {
+                    window.showToast(`Đã tạo giáo án ${window.appState.durationMin} phút đốt mỡ!`);
+                }
+            };
+
+            window.renderWorkoutList = function() {
+                const container = document.getElementById('workout-plan-list');
+                if (!container) return;
+                const items = (window.appState.workouts && window.appState.workouts.length > 0)
+                    ? window.appState.workouts
+                    : window.buildExercisesForCurrentSettings();
+
+                container.innerHTML = items.map((ex, idx) => `
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="space-y-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-xs font-black px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400">Bài ${idx + 1}</span>
+                                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-300">${ex.tag}</span>
+                                <span class="text-xs font-bold text-orange-400">~${ex.kcal} kcal</span>
+                            </div>
+                            <h4 class="font-bold text-white text-sm sm:text-base">${ex.name}</h4>
+                            <p class="text-xs text-slate-400">${ex.sets}</p>
+                        </div>
+                        <button type="button" onclick="window.logSingleExercise(${idx})" class="sm:w-auto w-full bg-slate-800 hover:bg-emerald-500 text-slate-200 hover:text-slate-950 font-bold py-2 px-4 rounded-xl text-xs transition-all shrink-0">
+                            + Ghi bài này
+                        </button>
+                    </div>
+                `).join('');
+            };
+
+            window.logSingleExercise = function(idx) {
+                const items = (window.appState.workouts && window.appState.workouts.length > 0)
+                    ? window.appState.workouts
+                    : window.buildExercisesForCurrentSettings();
+                const ex = items[idx];
+                if (!ex) return;
+                window.appState.workoutBurnedCalories = (Number(window.appState.workoutBurnedCalories) || 0) + (Number(ex.kcal) || 25);
+                window.saveState(true);
+                window.refreshUI();
+                window.showToast(`Đã cộng +${ex.kcal} kcal từ "${ex.name}"!`);
+            };
+
+            window.completeWorkoutSession = function() {
+                const burn = window.estimateWorkoutBurn();
+                window.appState.workoutBurnedCalories = (Number(window.appState.workoutBurnedCalories) || 0) + burn;
+                window.saveState(true);
+                window.refreshUI();
+                window.showToast(`🎉 Hoàn thành buổi tập! Đã cộng +${burn} kcal vào hôm nay.`);
+            };
+
+            // Steps & Stairs sync (URL query params + manual form)
+            window.syncActivityFromUrl = function() {
+                try {
+                    const params = new URLSearchParams(window.location.search || '');
+                    const stepsParam = params.get('steps');
+                    const stairsParam = params.get('stairs') !== null ? params.get('stairs') : params.get('floors');
+                    let updated = false;
+
+                    if (stepsParam !== null && stepsParam !== '' && !isNaN(Number(stepsParam))) {
+                        window.appState.stepsToday = Math.max(0, Math.round(Number(stepsParam)));
+                        updated = true;
+                    }
+                    if (stairsParam !== null && stairsParam !== '' && !isNaN(Number(stairsParam))) {
+                        window.appState.stairsToday = Math.max(0, Math.round(Number(stairsParam)));
+                        updated = true;
+                    }
+                    if (updated) {
+                        window.saveState(true);
+                        window.showToast(`Đã nhận dữ liệu iPhone: ${window.appState.stepsToday} bước, ${window.appState.stairsToday} tầng!`);
+                    }
+                } catch (e) {}
+            };
+
+            window.updateActivityManual = function() {
+                const stepsVal = Math.max(0, Math.round(Number(document.getElementById('steps-input')?.value) || 0));
+                const stairsVal = Math.max(0, Math.round(Number(document.getElementById('stairs-input')?.value) || 0));
+                window.appState.stepsToday = stepsVal;
+                window.appState.stairsToday = stairsVal;
+                window.saveState(true);
+                window.refreshUI();
+                window.showToast(`Đã cập nhật ${stepsVal.toLocaleString('vi-VN')} bước & ${stairsVal} tầng!`);
+            };
+
+            window.toggleShortcutGuide = function() {
+                const el = document.getElementById('iphone-shortcut-drawer');
+                if (el) el.classList.toggle('hidden');
+            };
+
+            // Nutrition & Gemini AI
+            window.appendFoodSample = function(text) {
+                const ta = document.getElementById('meal-story-input');
+                if (!ta) return;
+                ta.value = ta.value.trim() ? `${ta.value.trim()}, ${text}` : text;
+                ta.focus();
+            };
+
+            window.onPhotoPicked = function(event) {
+                const file = event && event.target && event.target.files && event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const dataUrl = String(e.target.result || '');
+                    const parts = dataUrl.split(',');
+                    if (parts.length === 2) {
+                        window.selectedPhotoBase64 = parts[1];
+                        window.selectedPhotoMime = file.type || 'image/jpeg';
+                        const img = document.getElementById('photo-preview-img');
+                        const ph = document.getElementById('photo-placeholder');
+                        if (img) {
+                            img.src = dataUrl;
+                            img.classList.remove('hidden');
+                        }
+                        if (ph) ph.classList.add('hidden');
+                    }
+                };
+                reader.readAsDataURL(file);
+            };
+
+            function getGeminiApiKey() {
+                try {
+                    const inputVal = document.getElementById('profile-apikey-input')?.value?.trim();
+                    if (inputVal) return inputVal;
+                    return localStorage.getItem(API_KEY_STORAGE) || '';
+                } catch (e) {
+                    return '';
+                }
             }
-        });
+
+            async function callGeminiJson(partsArray) {
+                const apiKey = getGeminiApiKey();
+                if (!apiKey) {
+                    throw new Error('MISSING_API_KEY');
+                }
+
+                const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+                const promptText = `Bạn là chuyên gia dinh dưỡng Việt Nam. Phân tích bữa ăn và trả về DUY NHẤT JSON hợp lệ (không markdown):
+{"items":[{"name":"Tên món kèm định lượng","kcal":250,"protein":18}],"advice":"Lời khuyên ngắn gọn 1 câu"}
+Lưu ý tính sát thực tế khẩu phần tiếng Việt (ví dụ: 1 quả trứng luộc ~78 kcal & 6g đạm, nửa bát cơm trắng ~100 kcal & 2g đạm, 1 bát phở bò ~420 kcal & 22g đạm).`;
+
+                let lastError = null;
+                for (let i = 0; i < models.length; i++) {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${models[i]}:generateContent?key=${encodeURIComponent(apiKey)}`;
+                    const body = {
+                        contents: [{
+                            parts: [{ text: promptText }, ...partsArray]
+                        }],
+                        generationConfig: {
+                            temperature: 0.2,
+                            responseMimeType: 'application/json'
+                        }
+                    };
+                    try {
+                        const res = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body)
+                        });
+                        if (!res.ok) {
+                            const errText = await res.text();
+                            lastError = new Error(`HTTP ${res.status}: ${errText.slice(0, 120)}`);
+                            continue;
+                        }
+                        const data = await res.json();
+                        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                        const cleanJson = rawText.replace(/```json|```/gi, '').trim();
+                        return JSON.parse(cleanJson);
+                    } catch (err) {
+                        lastError = err;
+                    }
+                }
+                throw lastError || new Error('Không thể kết nối Gemini AI');
+            }
+
+            window.renderEditableMealPreview = function(items, advice) {
+                window.pendingMealItems = Array.isArray(items) && items.length > 0
+                    ? items.map((it) => ({
+                        name: String(it.name || 'Món ăn').trim(),
+                        kcal: Math.max(0, Math.round(Number(it.kcal) || 0)),
+                        protein: Math.max(0, Math.round(Number(it.protein) || 0))
+                    }))
+                    : [{ name: 'Bữa ăn ước tính', kcal: 300, protein: 15 }];
+
+                const card = document.getElementById('analysis-result-card');
+                const listBox = document.getElementById('result-items-container');
+                const adviceBox = document.getElementById('result-advice-box');
+                if (!card || !listBox) return;
+
+                listBox.innerHTML = window.pendingMealItems.map((it, idx) => `
+                    <div class="grid grid-cols-12 gap-2 items-center bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                        <input type="text" value="${it.name.replace(/"/g, '&quot;')}" onchange="window.updatePendingMealItem(${idx}, 'name', this.value)" class="col-span-6 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                        <input type="number" value="${it.kcal}" onchange="window.updatePendingMealItem(${idx}, 'kcal', this.value)" class="col-span-3 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-orange-300 font-bold text-right">
+                        <input type="number" value="${it.protein}" onchange="window.updatePendingMealItem(${idx}, 'protein', this.value)" class="col-span-3 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-sky-300 font-bold text-right">
+                    </div>
+                `).join('');
+
+                if (adviceBox) {
+                    adviceBox.textContent = advice || 'Bạn có thể chỉnh trực tiếp số Calo hoặc Đạm từng món trước khi bấm cộng vào hôm nay.';
+                }
+                window.recalcPendingMealTotals();
+                card.classList.remove('hidden');
+            };
+
+            window.updatePendingMealItem = function(idx, field, value) {
+                const item = window.pendingMealItems[idx];
+                if (!item) return;
+                if (field === 'name') item.name = String(value || '').trim() || 'Món ăn';
+                if (field === 'kcal') item.kcal = Math.max(0, Math.round(Number(value) || 0));
+                if (field === 'protein') item.protein = Math.max(0, Math.round(Number(value) || 0));
+                window.recalcPendingMealTotals();
+            };
+
+            window.recalcPendingMealTotals = function() {
+                const totKcal = window.pendingMealItems.reduce((sum, x) => sum + (Number(x.kcal) || 0), 0);
+                const totPro = window.pendingMealItems.reduce((sum, x) => sum + (Number(x.protein) || 0), 0);
+                const kEl = document.getElementById('result-total-kcal');
+                const pEl = document.getElementById('result-total-protein');
+                if (kEl) kEl.textContent = `${totKcal.toLocaleString('vi-VN')} kcal`;
+                if (pEl) pEl.textContent = `${totPro}g Đạm (Protein)`;
+            };
+
+            window.analyzeMealText = async function() {
+                const story = document.getElementById('meal-story-input')?.value?.trim() || '';
+                if (!story) {
+                    window.showToast('Hãy nhập hoặc đọc món bạn đã ăn trước nhé!', 'warning');
+                    return;
+                }
+                const btn = document.getElementById('btn-ai-story');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = '⏳ Đang phân tích...';
+                }
+                try {
+                    const parsed = await callGeminiJson([{ text: `Bữa ăn: ${story}` }]);
+                    window.renderEditableMealPreview(parsed.items, parsed.advice);
+                    window.showToast('Đã phân tích xong bữa ăn!');
+                } catch (err) {
+                    if (err && err.message === 'MISSING_API_KEY') {
+                        window.showToast('Chưa có Gemini API Key — bấm "Tính nhanh" hoặc cài Key ở tab Hồ sơ.', 'warning');
+                    } else {
+                        window.showToast('AI bận tạm thời, hãy thử lại hoặc dùng nút "Tính nhanh".', 'warning');
+                    }
+                } finally {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = '✨ Phân tích Calo & Đạm';
+                    }
+                }
+            };
+
+            window.analyzeMealStoryOffline = function() {
+                const raw = (document.getElementById('meal-story-input')?.value || '').toLowerCase();
+                if (!raw.trim()) {
+                    window.showToast('Hãy nhập tên món ăn để tính nhanh!', 'warning');
+                    return;
+                }
+                const catalog = [
+                    { keys: ['trứng', 'trung'], name: '1 quả trứng luộc', kcal: 78, protein: 6 },
+                    { keys: ['cơm', 'com'], name: '1 bát cơm trắng', kcal: 200, protein: 4 },
+                    { keys: ['ức gà', 'uc ga', 'gà', 'ga'], name: '150g thịt gà', kcal: 245, protein: 42 },
+                    { keys: ['phở', 'pho', 'bún', 'bun'], name: '1 tô phở/bún', kcal: 420, protein: 20 },
+                    { keys: ['rau', 'canh'], name: 'Rau xanh / canh', kcal: 65, protein: 3 },
+                    { keys: ['bò', 'bo', 'thịt bò', 'thit bo'], name: '120g thịt bò', kcal: 220, protein: 30 },
+                    { keys: ['cá', 'ca'], name: '150g cá', kcal: 210, protein: 32 }
+                ];
+                const found = [];
+                catalog.forEach((c) => {
+                    if (c.keys.some((k) => raw.includes(k))) {
+                        found.push({ name: c.name, kcal: c.kcal, protein: c.protein });
+                    }
+                });
+                if (found.length === 0) {
+                    found.push({ name: raw.slice(0, 45), kcal: 320, protein: 16 });
+                }
+                window.renderEditableMealPreview(found, 'Tính nhanh ước lượng — bạn có thể bấm sửa trực tiếp số Calo/Đạm từng món.');
+            };
+
+            window.analyzeMealPhoto = async function() {
+                if (!window.selectedPhotoBase64) {
+                    window.showToast('Hãy chọn hoặc chụp ảnh món ăn trước nhé!', 'warning');
+                    return;
+                }
+                const btn = document.getElementById('btn-ai-photo');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = '⏳ Đang quét ảnh...';
+                }
+                try {
+                    const note = document.getElementById('meal-story-input')?.value?.trim() || 'Ảnh món ăn';
+                    const parsed = await callGeminiJson([
+                        { text: `Ghi chú thêm: ${note}` },
+                        { inlineData: { mimeType: window.selectedPhotoMime, data: window.selectedPhotoBase64 } }
+                    ]);
+                    window.renderEditableMealPreview(parsed.items, parsed.advice);
+                    window.showToast('Đã nhận diện món ăn từ ảnh!');
+                } catch (err) {
+                    if (err && err.message === 'MISSING_API_KEY') {
+                        window.showToast('Chưa có Gemini API Key. Hãy dán Key trong tab Tiến độ & Hồ sơ!', 'warning');
+                    } else {
+                        window.showToast('Không thể quét ảnh lúc này, vui lòng thử lại.', 'warning');
+                    }
+                } finally {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = '🔍 AI Quét ảnh món ăn';
+                    }
+                }
+            };
+
+            window.confirmMealItems = function() {
+                if (!Array.isArray(window.pendingMealItems) || window.pendingMealItems.length === 0) return;
+                const timeLabel = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                let addedKcal = 0;
+                let addedPro = 0;
+
+                window.pendingMealItems.forEach((it) => {
+                    const k = Math.max(0, Math.round(Number(it.kcal) || 0));
+                    const p = Math.max(0, Math.round(Number(it.protein) || 0));
+                    addedKcal += k;
+                    addedPro += p;
+                    window.appState.meals.unshift({
+                        id: Date.now() + Math.random(),
+                        name: it.name || 'Món ăn',
+                        kcal: k,
+                        protein: p,
+                        time: timeLabel
+                    });
+                });
+
+                window.appState.todayCalories = (Number(window.appState.todayCalories) || 0) + addedKcal;
+                window.appState.todayProtein = (Number(window.appState.todayProtein) || 0) + addedPro;
+                window.pendingMealItems = [];
+
+                const card = document.getElementById('analysis-result-card');
+                if (card) card.classList.add('hidden');
+
+                window.saveState(true);
+                window.refreshUI();
+                window.showToast(`Đã cộng +${addedKcal} kcal & +${addedPro}g đạm vào hôm nay!`);
+            };
+
+            window.addManualMeal = function() {
+                const nameEl = document.getElementById('manual-food-name');
+                const kcalEl = document.getElementById('manual-food-kcal');
+                const proEl = document.getElementById('manual-food-protein');
+
+                const name = (nameEl?.value || '').trim();
+                const kcal = Math.max(0, Math.round(Number(kcalEl?.value) || 0));
+                const protein = Math.max(0, Math.round(Number(proEl?.value) || 0));
+
+                if (!name || kcal <= 0) {
+                    window.showToast('Vui lòng nhập tên món và số Calo hợp lệ!', 'warning');
+                    return;
+                }
+
+                const timeLabel = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                window.appState.meals.unshift({
+                    id: Date.now(),
+                    name,
+                    kcal,
+                    protein,
+                    time: timeLabel
+                });
+                window.appState.todayCalories = (Number(window.appState.todayCalories) || 0) + kcal;
+                window.appState.todayProtein = (Number(window.appState.todayProtein) || 0) + protein;
+
+                if (nameEl) nameEl.value = '';
+                if (kcalEl) kcalEl.value = '';
+                if (proEl) proEl.value = '';
+
+                window.saveState(true);
+                window.refreshUI();
+                window.showToast(`Đã thêm "${name}" (+${kcal} kcal)!`);
+            };
+
+            window.deleteMealItem = function(index) {
+                const meal = window.appState.meals[index];
+                if (!meal) return;
+                window.appState.todayCalories = Math.max(0, (Number(window.appState.todayCalories) || 0) - (Number(meal.kcal) || 0));
+                window.appState.todayProtein = Math.max(0, (Number(window.appState.todayProtein) || 0) - (Number(meal.protein) || 0));
+                window.appState.meals.splice(index, 1);
+                window.saveState(true);
+                window.refreshUI();
+                window.showToast('Đã xóa món khỏi nhật ký hôm nay.');
+            };
+
+            window.clearTodayMeals = function() {
+                window.appState.meals = [];
+                window.appState.todayCalories = 0;
+                window.appState.todayProtein = 0;
+                window.saveState(true);
+                window.refreshUI();
+                window.showToast('Đã làm mới nhật ký bữa ăn hôm nay.');
+            };
+
+            window.renderMealsList = function() {
+                const container = document.getElementById('today-food-log-list');
+                if (!container) return;
+                const meals = window.appState.meals || [];
+                if (meals.length === 0) {
+                    container.innerHTML = `<p class="py-6 text-center text-xs text-slate-500">Chưa có món ăn nào được ghi nhận hôm nay.</p>`;
+                    return;
+                }
+                container.innerHTML = meals.map((m, idx) => `
+                    <div class="py-3 flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold text-white truncate">${m.name}</p>
+                            <p class="text-xs text-slate-400">
+                                <span class="text-orange-400 font-bold">${m.kcal} kcal</span> ·
+                                <span class="text-sky-400 font-semibold">${m.protein}g đạm</span> ·
+                                <span>${m.time || ''}</span>
+                            </p>
+                        </div>
+                        <button type="button" onclick="window.deleteMealItem(${idx})" class="px-2.5 py-1.5 rounded-lg bg-slate-950 hover:bg-rose-950 text-slate-400 hover:text-rose-300 border border-slate-800 text-xs font-bold shrink-0">
+                            Xóa
+                        </button>
+                    </div>
+                `).join('');
+            };
+
+            // Profile, API key & Weight chart
+            window.renderProfileAndKeyUI = function() {
+                const s = window.appState;
+                const setVal = (id, v) => {
+                    const el = document.getElementById(id);
+                    if (el && document.activeElement !== el) el.value = v;
+                };
+                setVal('edit-prof-weight', s.currentWeight);
+                setVal('edit-prof-goal', s.targetWeight);
+                setVal('edit-prof-height', s.heightCm);
+                setVal('edit-prof-age', s.age);
+                setVal('edit-prof-cal', s.dailyCalorieTarget);
+                setVal('edit-prof-protein', s.dailyProteinTarget);
+
+                const apiKey = localStorage.getItem(API_KEY_STORAGE) || '';
+                const navBadge = document.getElementById('nutrition-apikey-badge');
+                const profStatus = document.getElementById('profile-apikey-status');
+                const profInput = document.getElementById('profile-apikey-input');
+
+                if (apiKey) {
+                    if (navBadge) navBadge.textContent = 'Đã cài API Key ✓';
+                    if (profStatus) {
+                        profStatus.textContent = 'Đã lưu Key ✓';
+                        profStatus.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400';
+                    }
+                    if (profInput && document.activeElement !== profInput && !profInput.value) {
+                        profInput.value = apiKey;
+                    }
+                } else {
+                    if (navBadge) navBadge.textContent = 'Cài API Key';
+                    if (profStatus) {
+                        profStatus.textContent = 'Chưa có Key';
+                        profStatus.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-slate-950 border border-slate-700 text-slate-400';
+                    }
+                }
+            };
+
+            window.saveApiKey = function() {
+                const val = (document.getElementById('profile-apikey-input')?.value || '').trim();
+                if (!val) {
+                    window.showToast('Vui lòng dán Gemini API Key trước khi lưu!', 'warning');
+                    return;
+                }
+                localStorage.setItem(API_KEY_STORAGE, val);
+                window.renderProfileAndKeyUI();
+                if (window.currentUser && window.fbDb) {
+                    window.pushCloudData(true);
+                }
+                window.showToast('Đã lưu Gemini API Key thành công!');
+            };
+
+            window.logWeight = function() {
+                const input = document.getElementById('checkin-weight-input');
+                const w = Number(input?.value);
+                if (!w || w < 30 || w > 250) {
+                    window.showToast('Vui lòng nhập cân nặng hợp lệ (kg)!', 'warning');
+                    return;
+                }
+                window.appState.currentWeight = Number(w.toFixed(1));
+                const d = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+                window.appState.weightHistory.push({ date: d, weight: window.appState.currentWeight });
+                if (window.appState.weightHistory.length > 15) {
+                    window.appState.weightHistory.shift();
+                }
+                if (input) input.value = '';
+                window.saveState(true);
+                window.refreshUI();
+                window.showToast(`Đã ghi cân nặng ${window.appState.currentWeight.toFixed(1)} kg!`);
+            };
+
+            window.saveProfileSettings = function() {
+                const curW = Number(document.getElementById('edit-prof-weight')?.value) || 71;
+                const goalW = Number(document.getElementById('edit-prof-goal')?.value) || 66;
+                const h = Number(document.getElementById('edit-prof-height')?.value) || 172;
+                const age = Number(document.getElementById('edit-prof-age')?.value) || 24;
+                const cal = Number(document.getElementById('edit-prof-cal')?.value) || 1850;
+                const pro = Number(document.getElementById('edit-prof-protein')?.value) || 142;
+
+                window.appState.currentWeight = curW;
+                window.appState.targetWeight = goalW;
+                window.appState.heightCm = h;
+                window.appState.age = age;
+                window.appState.dailyCalorieTarget = cal;
+                window.appState.dailyProteinTarget = pro;
+
+                if (window.appState.weightHistory.length > 0) {
+                    window.appState.weightHistory[window.appState.weightHistory.length - 1].weight = curW;
+                }
+
+                window.saveState(true);
+                window.refreshUI();
+                window.showToast('Đã lưu hồ sơ cá nhân!');
+            };
+
+            window.renderWeightChart = function() {
+                const s = window.appState;
+                const startW = Number(s.startWeight) || 71;
+                const curW = Number(s.currentWeight) || 71;
+                const goalW = Number(s.targetWeight) || 66;
+
+                const startEl = document.getElementById('prog-start-w');
+                const goalEl = document.getElementById('prog-goal-w');
+                const pctEl = document.getElementById('prog-pct-label');
+                const barEl = document.getElementById('prog-bar-fill');
+                const svgBox = document.getElementById('weight-svg-box');
+                const chipsEl = document.getElementById('weight-history-chips');
+
+                if (startEl) startEl.textContent = `${startW.toFixed(1)} kg`;
+                if (goalEl) goalEl.textContent = `${goalW.toFixed(1)} kg`;
+
+                const spanNeeded = Math.max(0.1, Math.abs(startW - goalW));
+                const progressDelta = Math.max(0, (startW - goalW >= 0 ? startW - curW : curW - startW));
+                const pct = Math.min(100, Math.round((progressDelta / spanNeeded) * 100));
+
+                if (pctEl) pctEl.textContent = `${pct}% chặng đường`;
+                if (barEl) barEl.style.width = `${Math.max(5, pct)}%`;
+
+                if (svgBox) {
+                    const hist = (Array.isArray(s.weightHistory) && s.weightHistory.length > 0)
+                        ? s.weightHistory
+                        : [{ date: 'Hôm nay', weight: curW }];
+                    const width = svgBox.clientWidth || 600;
+                    const height = 160;
+                    const padL = 36, padR = 24, padT = 22, padB = 26;
+                    const vals = [...hist.map((h) => Number(h.weight) || curW), goalW];
+                    const minV = Math.floor(Math.min(...vals) - 1);
+                    const maxV = Math.ceil(Math.max(...vals) + 1);
+                    const rangeV = Math.max(1, maxV - minV);
+
+                    const getY = (v) => padT + ((maxV - v) / rangeV) * (height - padT - padB);
+                    const getX = (i) => hist.length === 1 ? width / 2 : padL + (i / (hist.length - 1)) * (width - padL - padR);
+
+                    const pts = hist.map((h, i) => ({
+                        x: getX(i),
+                        y: getY(Number(h.weight) || curW),
+                        w: Number(h.weight) || curW,
+                        d: h.date || ''
+                    }));
+                    const goalY = getY(goalW);
+
+                    let svg = `<svg viewBox="0 0 ${width} ${height}" class="w-full h-full overflow-visible">`;
+                    svg += `<line x1="${padL}" y1="${goalY}" x2="${width - padR}" y2="${goalY}" stroke="#10b981" stroke-width="1.5" stroke-dasharray="5 5"/>`;
+                    svg += `<text x="${width - padR}" y="${goalY - 6}" text-anchor="end" fill="#10b981" font-size="10" font-weight="bold">Mục tiêu ${goalW.toFixed(1)}kg</text>`;
+                    if (pts.length > 1) {
+                        svg += `<polyline fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" points="${pts.map((p) => `${p.x},${p.y}`).join(' ')}"/>`;
+                    }
+                    pts.forEach((p) => {
+                        svg += `<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="#020617" stroke="#34d399" stroke-width="2.5"/>`;
+                        svg += `<text x="${p.x}" y="${p.y - 8}" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="bold">${p.w.toFixed(1)}kg</text>`;
+                        svg += `<text x="${p.x}" y="${height - 5}" text-anchor="middle" fill="#94a3b8" font-size="10">${p.d}</text>`;
+                    });
+                    svg += `</svg>`;
+                    svgBox.innerHTML = svg;
+                }
+
+                if (chipsEl) {
+                    const recent = (s.weightHistory || []).slice(-5);
+                    chipsEl.innerHTML = recent.map((h) => `
+                        <span class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300">
+                            ${h.date}: <strong class="text-white">${Number(h.weight).toFixed(1)}kg</strong>
+                        </span>
+                    `).join('');
+                }
+            };
+
+            // Export / Import JSON backup
+            window.exportBackupJson = function() {
+                const payload = {
+                    appState: window.appState,
+                    geminiApiKey: localStorage.getItem(API_KEY_STORAGE) || ''
+                };
+                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `FitHomeAI_Backup_${todayStr}.json`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                window.showToast('Đã xuất file sao lưu JSON!');
+            };
+
+            window.importBackupJson = function(event) {
+                const file = event && event.target && event.target.files && event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const parsed = JSON.parse(String(e.target.result || '{}'));
+                        const imported = parsed.appState || parsed;
+                        window.appState = { ...createDefaultState(), ...imported };
+                        if (parsed.geminiApiKey) {
+                            localStorage.setItem(API_KEY_STORAGE, parsed.geminiApiKey);
+                        }
+                        window.saveState(true);
+                        window.refreshUI();
+                        window.showToast('Đã khôi phục dữ liệu từ file!');
+                    } catch (err) {
+                        window.showToast('File sao lưu không hợp lệ!', 'warning');
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            // Firebase Auth & Firestore Cloud Sync
+            function updateAuthUI(user) {
+                window.currentUser = user || null;
+                const dot = document.getElementById('header-gmail-dot');
+                const lbl = document.getElementById('header-gmail-label');
+                const statusText = document.getElementById('cloud-status-text');
+                const userNameEl = document.getElementById('cloud-user-name');
+                const avatarEl = document.getElementById('progress-user-avatar');
+                const btnIn = document.getElementById('btn-google-signin');
+                const btnSync = document.getElementById('btn-cloud-sync-now');
+                const btnOut = document.getElementById('btn-google-signout');
+
+                if (btnIn) btnIn.disabled = false;
+
+                if (user) {
+                    if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+                    if (lbl) lbl.textContent = user.displayName || user.email || 'Đã đồng bộ';
+                    if (userNameEl) {
+                        userNameEl.textContent = `${user.displayName || 'Tài khoản'} (${user.email || ''})`;
+                        userNameEl.classList.remove('hidden');
+                    }
+                    if (statusText) statusText.textContent = '☁️ Đã đồng bộ đám mây theo tài khoản Gmail';
+                    if (avatarEl && user.photoURL) {
+                        avatarEl.src = user.photoURL;
+                        avatarEl.classList.remove('hidden');
+                    }
+                    if (btnIn) btnIn.classList.add('hidden');
+                    if (btnSync) btnSync.classList.remove('hidden');
+                    if (btnOut) btnOut.classList.remove('hidden');
+                } else {
+                    if (dot) dot.className = 'w-2 h-2 rounded-full bg-slate-500';
+                    if (lbl) lbl.textContent = 'Đăng nhập Gmail';
+                    if (userNameEl) userNameEl.classList.add('hidden');
+                    if (statusText) statusText.textContent = 'Chưa đăng nhập Gmail — Dữ liệu đang lưu trên thiết bị này';
+                    if (avatarEl) avatarEl.classList.add('hidden');
+                    if (btnIn) btnIn.classList.remove('hidden');
+                    if (btnSync) btnSync.classList.add('hidden');
+                    if (btnOut) btnOut.classList.add('hidden');
+                }
+            }
+
+            window.initFirebaseSafe = function() {
+                try {
+                    if (typeof firebase === 'undefined') {
+                        window.setAuthStatusBanner('Đang tải thư viện Firebase, hãy thử lại sau vài giây.', true);
+                        return false;
+                    }
+                    if (!firebase.apps.length) {
+                        window.fbApp = firebase.initializeApp(DEFAULT_FIREBASE_CONFIG);
+                    } else {
+                        window.fbApp = firebase.app();
+                    }
+                    window.fbAuth = firebase.auth();
+                    window.fbDb = firebase.firestore();
+
+                    window.fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
+
+                    window.fbAuth.getRedirectResult().then((res) => {
+                        if (res && res.user) {
+                            updateAuthUI(res.user);
+                            window.pullCloudData(res.user);
+                            window.showToast('Đăng nhập Gmail thành công!');
+                        }
+                    }).catch((err) => {
+                        if (err && err.code) {
+                            window.setAuthStatusBanner(`Lỗi xác thực (${err.code}): ${err.message}`, true);
+                        }
+                    });
+
+                    window.fbAuth.onAuthStateChanged((user) => {
+                        updateAuthUI(user);
+                        if (user) {
+                            window.pullCloudData(user);
+                        }
+                    });
+
+                    return true;
+                } catch (err) {
+                    window.setAuthStatusBanner(`Lỗi khởi tạo Firebase: ${err.message}`, true);
+                    return false;
+                }
+            };
+
+            window.pullCloudData = async function(user) {
+                if (!user || !window.fbDb) return;
+                try {
+                    const snap = await window.fbDb.collection('users').doc(user.uid).get();
+                    if (snap.exists) {
+                        const docData = snap.data() || {};
+                        if (docData.stateJson) {
+                            const remoteState = JSON.parse(docData.stateJson);
+                            window.appState = {
+                                ...createDefaultState(),
+                                ...remoteState,
+                                equipment: { ...createDefaultState().equipment, ...(remoteState.equipment || {}) }
+                            };
+                            if (window.appState.dateStr !== todayStr) {
+                                window.appState.dateStr = todayStr;
+                                window.appState.todayCalories = 0;
+                                window.appState.todayProtein = 0;
+                                window.appState.burnedCalories = 0;
+                                window.appState.workoutBurnedCalories = 0;
+                                window.appState.stepsToday = 0;
+                                window.appState.stairsToday = 0;
+                                window.appState.meals = [];
+                            }
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(window.appState));
+                        }
+                        if (docData.geminiApiKey) {
+                            localStorage.setItem(API_KEY_STORAGE, docData.geminiApiKey);
+                        }
+                        window.refreshUI();
+                        window.setAuthStatusBanner(`Đã đồng bộ dữ liệu đám mây cho ${user.email}.`, false);
+                    } else {
+                        await window.pushCloudData(true);
+                    }
+                } catch (err) {
+                    window.setAuthStatusBanner(`Không thể tải dữ liệu Firestore: ${err.message}`, true);
+                }
+            };
+
+            window.pushCloudData = async function(silent) {
+                if (!window.currentUser || !window.fbDb) return;
+                try {
+                    await window.fbDb.collection('users').doc(window.currentUser.uid).set({
+                        email: window.currentUser.email || '',
+                        displayName: window.currentUser.displayName || '',
+                        stateJson: JSON.stringify(window.appState),
+                        geminiApiKey: localStorage.getItem(API_KEY_STORAGE) || '',
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                    if (!silent) {
+                        window.showToast('☁️ Đã đồng bộ dữ liệu lên Gmail!');
+                        window.setAuthStatusBanner(`Đã lưu đám mây lúc ${new Date().toLocaleTimeString('vi-VN')}.`, false);
+                    }
+                } catch (err) {
+                    if (!silent) {
+                        window.setAuthStatusBanner(`Lỗi lưu Firestore: ${err.message}`, true);
+                        window.showToast('Lỗi đồng bộ đám mây!', 'warning');
+                    }
+                }
+            };
+
+            window.signInWithGmail = async function() {
+                try {
+                    if (!window.fbAuth) {
+                        window.initFirebaseSafe();
+                    }
+                    if (!window.fbAuth) {
+                        window.setAuthStatusBanner('Firebase Auth chưa sẵn sàng. Hãy tải lại trang (F5).', true);
+                        return;
+                    }
+
+                    const btnIn = document.getElementById('btn-google-signin');
+                    if (btnIn) btnIn.disabled = true;
+
+                    const provider = new firebase.auth.GoogleAuthProvider();
+                    provider.setCustomParameters({ prompt: 'select_account' });
+
+                    const ua = navigator.userAgent || '';
+                    const isIOS = /iPad|iPhone|iPod/.test(ua);
+                    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
+                    if (isIOS || isStandalone) {
+                        window.setAuthStatusBanner('Đang chuyển sang trang chọn tài khoản Google...', false);
+                        await window.fbAuth.signInWithRedirect(provider);
+                        return;
+                    }
+
+                    await window.fbAuth.signInWithPopup(provider);
+                    window.showToast('Đăng nhập Gmail thành công!');
+                } catch (err) {
+                    const btnIn = document.getElementById('btn-google-signin');
+                    if (btnIn) btnIn.disabled = false;
+
+                    if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user')) {
+                        try {
+                            window.setAuthStatusBanner('Trình duyệt chặn pop-up — đang chuyển sang đăng nhập toàn trang...', false);
+                            const provider = new firebase.auth.GoogleAuthProvider();
+                            provider.setCustomParameters({ prompt: 'select_account' });
+                            await window.fbAuth.signInWithRedirect(provider);
+                            return;
+                        } catch (redirErr) {
+                            err = redirErr;
+                        }
+                    }
+
+                    const code = err?.code || 'unknown';
+                    const msg = err?.message || 'Không thể đăng nhập';
+                    if (code === 'auth/unauthorized-domain') {
+                        window.setAuthStatusBanner(
+                            `Domain chưa được phép trên Firebase (${window.location.hostname}). Hãy thêm vào Firebase Console → Authentication → Settings → Authorized domains.`,
+                            true
+                        );
+                    } else {
+                        window.setAuthStatusBanner(`Lỗi đăng nhập (${code}): ${msg}`, true);
+                    }
+                    window.showToast('Không thể mở cửa sổ đăng nhập Gmail', 'warning');
+                }
+            };
+
+            window.logoutGmail = async function() {
+                try {
+                    if (window.fbAuth) {
+                        await window.fbAuth.signOut();
+                    }
+                    updateAuthUI(null);
+                    window.setAuthStatusBanner('Đã đăng xuất. Dữ liệu vẫn giữ trên máy này và bạn có thể đăng nhập lại bất kỳ lúc nào.', false);
+                    window.showToast('Đã đăng xuất khỏi Gmail.');
+                } catch (err) {
+                    window.showToast('Lỗi khi đăng xuất: ' + (err?.message || ''), 'warning');
+                }
+            };
+
+            window.handleHeaderAuthAction = function() {
+                if (window.currentUser) {
+                    window.switchTab('progress');
+                } else {
+                    window.switchTab('progress');
+                    window.signInWithGmail();
+                }
+            };
+        })();
     </script>
 
     <style>
@@ -118,18 +1257,15 @@
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
 
-    <!-- Toast Notification Container -->
+    <!-- Toast Container -->
     <div id="toast-container" class="fixed top-4 right-4 z-[60] flex flex-col gap-2 max-w-xs w-full pointer-events-none"></div>
 
-    <!-- Sticky Top Header -->
+    <!-- Top Header -->
     <header class="sticky top-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-slate-800">
         <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-            <!-- Brand & Goal -->
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-400 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/20 shrink-0">
-                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M13.5 2C13.5 2 14.5 5.5 11.5 8.5C9.5 10.5 7 11.5 7 15C7 18.31 9.69 21 13 21C16.31 21 19 18.31 19 15C19 11.5 16.5 9.5 15.5 7.5C15.1 9.2 14.2 10.2 13 10.5C13.8 8.2 14.2 5.2 13.5 2Z"/>
-                    </svg>
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/20 shrink-0 font-black">
+                    FH
                 </div>
                 <div>
                     <div class="flex items-center gap-2">
@@ -140,7 +1276,7 @@
                 </div>
             </div>
 
-            <!-- Desktop Navigation Tabs -->
+            <!-- Desktop Navigation -->
             <nav class="hidden md:flex items-center gap-1.5 bg-slate-900 p-1 rounded-2xl border border-slate-800 shrink-0">
                 <button type="button" data-tab="workout" id="tab-desk-workout" onclick="window.switchTab('workout')" class="nav-tab-btn cursor-pointer whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20">
                     🏋️ Tập luyện
@@ -153,16 +1289,14 @@
                 </button>
             </nav>
 
-            <!-- Compact Cloud Sync Status Pill -->
-            <div class="flex items-center gap-2">
-                <button type="button" id="header-gmail-btn" onclick="handleHeaderAuthAction()" class="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-2 transition-all">
-                    <span id="header-gmail-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
-                    <span id="header-gmail-label" class="text-slate-200 max-w-[130px] truncate">Đăng nhập Gmail</span>
-                </button>
-            </div>
+            <!-- Header Gmail Pill -->
+            <button type="button" id="header-gmail-btn" onclick="window.handleHeaderAuthAction()" class="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer">
+                <span id="header-gmail-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+                <span id="header-gmail-label" class="text-slate-200 max-w-[140px] truncate">Đăng nhập Gmail</span>
+            </button>
         </div>
 
-        <!-- Live Calorie & Protein Summary Strip -->
+        <!-- Daily Summary Strip -->
         <div class="bg-slate-900/90 border-t border-slate-800/80">
             <div class="max-w-5xl mx-auto px-4 py-2.5 grid grid-cols-2 sm:grid-cols-5 gap-2 items-center text-center sm:text-left">
                 <div class="bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800/80">
@@ -179,7 +1313,7 @@
                 </div>
                 <div class="bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800/80">
                     <span class="text-[10px] uppercase tracking-wider text-slate-400 block">Đạm (Protein)</span>
-                    <span id="strip-protein" class="font-extrabold text-sm text-sky-400">0 / 142g</span>
+                    <span id="strip-protein" class="font-extrabold text-sm text-teal-400">0 / 142g</span>
                 </div>
                 <div class="col-span-2 sm:col-span-1 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/30">
                     <span class="text-[10px] uppercase tracking-wider text-emerald-300 block">Còn lại hôm nay</span>
@@ -189,27 +1323,22 @@
         </div>
     </header>
 
-    <!-- Main Content Container (Clean Centered Full-Width Stacking) -->
+    <!-- Full-Width Centered Main Content -->
     <main class="max-w-5xl mx-auto px-4 pt-5 pb-28 space-y-6">
 
-        <!-- ==========================================================
-             TAB 1: TẬP LUYỆN (#view-workout)
-             ========================================================== -->
+        <!-- TAB 1: WORKOUT & ACTIVITY -->
         <section id="view-workout" class="space-y-6">
-
-            <!-- Card 1: Thiết lập buổi tập đốt mỡ -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-5 shadow-xl">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <h2 class="font-extrabold text-base sm:text-lg text-white flex items-center gap-2.5">
                         <span class="w-1.5 h-6 bg-emerald-500 rounded-full"></span>
-                        Thiết lập buổi tập đốt mỡ
+                        Thiết lập buổi tập đốt mỡ tại nhà
                     </h2>
                     <span id="workout-est-badge" class="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                         Ước tính đốt: ~265 kcal
                     </span>
                 </div>
 
-                <!-- Duration Slider -->
                 <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
                     <div class="flex items-center justify-between">
                         <label for="duration-slider" class="text-xs sm:text-sm font-semibold text-slate-300">
@@ -217,160 +1346,92 @@
                         </label>
                         <span class="text-lg font-black text-emerald-400"><span id="duration-val">30</span> phút</span>
                     </div>
-                    <input type="range" id="duration-slider" min="10" max="60" step="5" value="30" class="w-full" oninput="onDurationChange(this.value)">
-                    <div class="flex justify-between text-[11px] text-slate-500 font-medium">
-                        <span>10p (Nhanh)</span>
-                        <span>20p</span>
-                        <span>30p (Tiêu chuẩn)</span>
-                        <span>45p</span>
-                        <span>60p (Chuyên sâu)</span>
-                    </div>
+                    <input type="range" id="duration-slider" min="10" max="60" step="5" value="30" class="w-full" oninput="window.onDurationChange(this.value)">
                 </div>
 
-                <!-- Intensity & Equipment Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Intensity Selector -->
                     <div class="space-y-2">
                         <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Cường độ tập luyện</label>
                         <div class="grid grid-cols-3 gap-2">
-                            <button type="button" id="btn-int-light" onclick="setWorkoutIntensity('light')" class="py-2.5 px-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-950 text-slate-300 transition-all">
-                                Nhẹ nhàng
-                            </button>
-                            <button type="button" id="btn-int-standard" onclick="setWorkoutIntensity('standard')" class="py-2.5 px-2 rounded-xl text-xs font-bold border border-emerald-500 bg-emerald-500/15 text-emerald-400 transition-all">
-                                Đốt mỡ chuẩn
-                            </button>
-                            <button type="button" id="btn-int-hiit" onclick="setWorkoutIntensity('hiit')" class="py-2.5 px-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-950 text-slate-300 transition-all">
-                                HIIT Cao độ
-                            </button>
+                            <button type="button" id="btn-int-light" onclick="window.setIntensity('light')" class="py-2.5 px-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-950 text-slate-300 transition-all cursor-pointer">Nhẹ nhàng</button>
+                            <button type="button" id="btn-int-standard" onclick="window.setIntensity('standard')" class="py-2.5 px-2 rounded-xl text-xs font-bold border border-emerald-500 bg-emerald-500/15 text-emerald-400 transition-all cursor-pointer">Đốt mỡ chuẩn</button>
+                            <button type="button" id="btn-int-hiit" onclick="window.setIntensity('hiit')" class="py-2.5 px-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-950 text-slate-300 transition-all cursor-pointer">HIIT Cao độ</button>
                         </div>
                     </div>
 
-                    <!-- Equipment Toggles -->
                     <div class="space-y-2">
                         <div class="flex items-center justify-between gap-2">
                             <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Dụng cụ tập</label>
-                            <button type="button" id="btn-away-toggle" onclick="toggleAwayMode()" class="text-[11px] font-bold px-2.5 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition-all">
-                                🎒 Chế độ Đi xa (Không dụng cụ)
+                            <button type="button" id="btn-away-toggle" onclick="window.toggleAwayMode()" class="text-[11px] font-bold px-2.5 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition-all cursor-pointer">
+                                🎒 Chế độ Đi xa
                             </button>
                         </div>
                         <div class="grid grid-cols-3 gap-2">
-                            <button type="button" id="btn-eq-mat" onclick="toggleEquipment('mat')" class="py-2.5 px-2 rounded-xl text-xs font-bold border border-emerald-500 bg-emerald-500/15 text-emerald-400 transition-all">
-                                🧘 Thảm tập
-                            </button>
-                            <button type="button" id="btn-eq-dumbbell" onclick="toggleEquipment('dumbbell')" class="py-2.5 px-2 rounded-xl text-xs font-bold border border-emerald-500 bg-emerald-500/15 text-emerald-400 transition-all">
-                                🏋️ Tạ đơn 15kg
-                            </button>
-                            <button type="button" id="btn-eq-pullup" onclick="toggleEquipment('pullup')" class="py-2.5 px-2 rounded-xl text-xs font-bold border border-emerald-500 bg-emerald-500/15 text-emerald-400 transition-all">
-                                💪 Xà đơn
-                            </button>
+                            <button type="button" id="btn-eq-mat" onclick="window.toggleEquipment('mat')" class="py-2.5 px-2 rounded-xl text-xs font-bold border border-emerald-500 bg-emerald-500/15 text-emerald-400 transition-all cursor-pointer">🧘 Thảm tập</button>
+                            <button type="button" id="btn-eq-dumbbell" onclick="window.toggleEquipment('dumbbell')" class="py-2.5 px-2 rounded-xl text-xs font-bold border border-emerald-500 bg-emerald-500/15 text-emerald-400 transition-all cursor-pointer">🏋️ Tạ 15kg</button>
+                            <button type="button" id="btn-eq-pullup" onclick="window.toggleEquipment('pullup')" class="py-2.5 px-2 rounded-xl text-xs font-bold border border-emerald-500 bg-emerald-500/15 text-emerald-400 transition-all cursor-pointer">💪 Xà đơn</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Primary CTA -->
-                <button type="button" onclick="generateWorkoutPlan(true)" class="w-full bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400 text-slate-950 font-black py-3.5 px-5 rounded-xl text-sm shadow-lg shadow-emerald-500/20 transition-all">
-                    ✨ Tạo giáo án chuẩn theo thời gian
+                <button type="button" onclick="window.generateWorkoutPlan(true)" class="w-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black py-3.5 px-5 rounded-xl text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer">
+                    ✨ Tạo giáo án đốt mỡ chuẩn
                 </button>
             </div>
 
-            <!-- Interactive Workout Timer Bar -->
-            <div class="bg-slate-900 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div class="min-w-0">
-                        <span id="timer-stage-label" class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400 block">Đồng hồ tập luyện</span>
-                        <h3 id="timer-current-title" class="font-bold text-white text-sm sm:text-base truncate">Bấm "Tập" ở bài bất kỳ hoặc dùng nút đếm nhanh</h3>
-                    </div>
-                    <div class="flex items-center justify-between sm:justify-end gap-2 bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800">
-                        <span id="timer-clock" class="font-mono text-2xl sm:text-3xl font-black text-white min-w-[84px] text-center">00:45</span>
-                        <button type="button" id="btn-timer-start" onclick="toggleWorkoutTimer()" class="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all">
-                            ▶ Chạy
-                        </button>
-                        <button type="button" onclick="nextWorkoutExercise()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-all" title="Bài tiếp theo">
-                            ⏭ Tiếp
-                        </button>
-                        <button type="button" onclick="resetWorkoutTimer()" class="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all" title="Đặt lại">
-                            ↺
-                        </button>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 border-t border-slate-800">
-                    <span class="text-[11px] text-slate-400 shrink-0">Đếm nhanh:</span>
-                    <button type="button" onclick="startQuickPresetTimer(45, 'Hiệp tập 45 giây')" class="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-semibold shrink-0">Tập 45s</button>
-                    <button type="button" onclick="startQuickPresetTimer(60, 'Hiệp tập 60 giây')" class="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-semibold shrink-0">Tập 60s</button>
-                    <button type="button" onclick="startQuickPresetTimer(25, 'Nghỉ đốt mỡ 25 giây')" class="px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 text-xs font-semibold shrink-0">Nghỉ 25s</button>
-                    <button type="button" onclick="startQuickPresetTimer(45, 'Nghỉ phục hồi 45 giây')" class="px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 text-xs font-semibold shrink-0">Nghỉ 45s</button>
-                </div>
-            </div>
+            <div id="workout-plan-list" class="space-y-3"></div>
 
-            <!-- Generated 4-Phase Workout Plan -->
-            <div id="workout-plan-list" class="space-y-4"></div>
-
-            <!-- Complete Workout Action Bar -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
                     <h4 class="font-bold text-white text-sm sm:text-base">Hoàn thành buổi tập hôm nay?</h4>
                     <p class="text-xs text-slate-400 mt-0.5">Cộng ngay <strong id="complete-session-kcal" class="text-emerald-400">265 kcal</strong> vào chỉ số Đã đốt trong ngày.</p>
                 </div>
-                <button type="button" onclick="logCompletedWorkoutSession()" class="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-slate-950 font-black py-3 px-6 rounded-xl text-sm shadow-lg shadow-orange-500/20 transition-all">
+                <button type="button" onclick="window.completeWorkoutSession()" class="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black py-3 px-6 rounded-xl text-sm transition-all cursor-pointer">
                     ✅ Hoàn thành buổi tập
                 </button>
             </div>
 
-            <!-- Card 2: Đi bộ & Leo cầu thang hôm nay -->
-            <div class="bg-slate-900 border border-sky-500/30 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+            <!-- Apple Shortcuts & Manual Steps/Stairs Sync -->
+            <div class="bg-slate-900 border border-teal-500/30 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                        <h3 class="font-extrabold text-base text-white flex items-center gap-2">
-                            🚶 Đi bộ & Leo cầu thang hôm nay
-                        </h3>
-                        <p class="text-xs text-slate-400 mt-0.5">Tự động nhận từ Phím tắt iPhone hoặc nhập tay trực tiếp (~0.04 kcal/bước + ~3.5 kcal/tầng)</p>
+                        <h3 class="font-extrabold text-base text-white">🚶 Đồng bộ Bước chân & Cầu thang (iPhone Shortcuts)</h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Nhận tự động qua tham số URL (?steps=...&stairs=...) hoặc nhập tay trực tiếp</p>
                     </div>
-                    <span class="text-xs font-bold px-3 py-1 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30">
-                        Đã đốt thêm: <strong id="activity-kcal-badge">0 kcal</strong>
+                    <span class="text-xs font-bold px-3 py-1 rounded-full bg-teal-500/15 text-teal-300 border border-teal-500/30">
+                        Đốt từ vận động: <strong id="activity-kcal-badge">0 kcal</strong>
                     </span>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                     <div class="sm:col-span-4">
-                        <label for="steps-input" class="block text-xs font-semibold text-slate-400 mb-1">Số bước chân (Steps)</label>
-                        <input type="number" id="steps-input" placeholder="Ví dụ: 6500" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
+                        <label for="steps-input" class="block text-xs font-semibold text-slate-400 mb-1">Số bước chân hôm nay</label>
+                        <input type="number" id="steps-input" placeholder="Ví dụ: 7000" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
                     </div>
                     <div class="sm:col-span-4">
-                        <label for="floors-input" class="block text-xs font-semibold text-slate-400 mb-1">Số tầng cầu thang (Floors)</label>
-                        <input type="number" id="floors-input" placeholder="Ví dụ: 5" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
+                        <label for="stairs-input" class="block text-xs font-semibold text-slate-400 mb-1">Số tầng cầu thang leo lên</label>
+                        <input type="number" id="stairs-input" placeholder="Ví dụ: 6" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
                     </div>
                     <div class="sm:col-span-4 flex gap-2">
-                        <button type="button" onclick="updateManualActivity()" class="flex-1 bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-2.5 px-4 rounded-xl text-xs sm:text-sm transition-all">
+                        <button type="button" onclick="window.updateActivityManual()" class="flex-1 bg-teal-400 hover:bg-teal-300 text-slate-950 font-extrabold py-2.5 px-4 rounded-xl text-xs sm:text-sm transition-all cursor-pointer">
                             Cập nhật vận động
                         </button>
-                        <button type="button" onclick="toggleIphoneShortcutGuide()" class="px-3.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-bold shrink-0" title="Hướng dẫn Phím tắt iPhone">
+                        <button type="button" onclick="window.toggleShortcutGuide()" class="px-3.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-bold shrink-0 cursor-pointer">
                             🍎 Phím tắt
                         </button>
                     </div>
                 </div>
 
-                <!-- Collapsible Apple Shortcuts Guide -->
-                <div id="iphone-shortcut-drawer" class="hidden bg-slate-950 p-4 rounded-xl border border-sky-500/30 text-xs text-slate-300 space-y-2">
-                    <div class="flex items-center justify-between">
-                        <strong class="text-sky-400">🍎 Hướng dẫn đồng bộ tự động từ Sức khỏe iPhone (Apple Shortcuts):</strong>
-                        <button type="button" onclick="toggleIphoneShortcutGuide()" class="text-slate-400 hover:text-white font-bold px-2">✕</button>
-                    </div>
-                    <ol class="list-decimal list-inside space-y-1 text-slate-300">
-                        <li>Mở app <strong>Phím tắt (Shortcuts)</strong> trên iPhone → tạo phím tắt mới.</li>
-                        <li>Dùng <strong>Tìm mẫu sức khỏe</strong> lấy tổng <em>Bước chân (Steps)</em> và <em>Số tầng leo lên (Flights Climbed)</em> hôm nay.</li>
-                        <li>Thêm tác vụ <strong>Mở URL (Open URLs)</strong> với đường dẫn chuẩn bên dưới:</li>
-                    </ol>
-                    <code class="block bg-slate-900 p-2.5 rounded-lg text-emerald-400 break-all select-all font-mono">https://nguyenmanhdat3090-create.github.io/HealthforD/?steps=[Steps]&amp;floors=[Floors]</code>
+                <div id="iphone-shortcut-drawer" class="hidden bg-slate-950 p-4 rounded-xl border border-teal-500/30 text-xs text-slate-300 space-y-2">
+                    <p class="font-bold text-teal-300">Cấu hình Apple Shortcuts trên iPhone:</p>
+                    <p>Lấy <em>Steps</em> và <em>Flights Climbed</em> rồi mở URL sau:</p>
+                    <code class="block bg-slate-900 p-2.5 rounded-lg text-emerald-400 break-all select-all font-mono">https://nguyenmanhdat3090-create.github.io/HealthforD/?steps=[Steps]&amp;stairs=[Floors]</code>
                 </div>
             </div>
         </section>
 
-        <!-- ==========================================================
-             TAB 2: BẾP & DINH DƯỠNG (#view-nutrition)
-             ========================================================== -->
+        <!-- TAB 2: NUTRITION & GEMINI AI -->
         <section id="view-nutrition" class="hidden space-y-6">
-
-            <!-- Dual AI Food Analyzer Card (Clean 2-Column Grid) -->
             <div class="bg-slate-900 border border-emerald-500/35 rounded-2xl p-4 sm:p-6 space-y-5 shadow-xl">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -378,151 +1439,125 @@
                             <span class="w-1.5 h-6 bg-emerald-500 rounded-full"></span>
                             Trợ lý AI Tính Calo & Đạm Bữa Ăn
                         </h2>
-                        <p class="text-xs text-slate-400 mt-0.5">Kể lại món đã ăn (chữ hoặc đọc micro iPhone) hoặc chụp ảnh mâm cơm để tính tự động</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Kể bữa ăn (ví dụ: "1 quả trứng luộc, nửa bát cơm, ức gà") hoặc tải ảnh món ăn</p>
                     </div>
-                    <button type="button" onclick="window.switchTab('progress')" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-amber-300 hover:border-emerald-500/50 transition-all">
+                    <button type="button" onclick="window.switchTab('progress')" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-emerald-300 hover:border-emerald-500/50 transition-all cursor-pointer">
                         🔑 <span id="nutrition-apikey-badge">Cài API Key</span>
                     </button>
                 </div>
 
-                <!-- 2-Column Responsive Grid -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <!-- Left Panel: Text / Voice Story -->
                     <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between space-y-3">
                         <div class="space-y-2.5">
                             <label for="meal-story-input" class="block text-sm font-bold text-emerald-400">
                                 📝 Kể món đã ăn (Chữ hoặc Giọng nói iPhone)
                             </label>
-                            <textarea id="meal-story-input" rows="4" placeholder="Ví dụ: Sáng 1 bát phở bò tái, trưa 2 bát cơm với 1 quả trứng luộc và rau cải..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 leading-relaxed"></textarea>
-                            <!-- Quick Append Chips -->
+                            <textarea id="meal-story-input" rows="4" placeholder="Ví dụ: Sáng 1 quả trứng luộc và 1 bát phở bò, trưa nửa bát cơm với 150g ức gà..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"></textarea>
                             <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-                                <button type="button" onclick="appendFoodChip('1 quả trứng luộc')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] text-slate-300 shrink-0">+ 1 trứng</button>
-                                <button type="button" onclick="appendFoodChip('1 bát cơm trắng')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] text-slate-300 shrink-0">+ 1 bát cơm</button>
-                                <button type="button" onclick="appendFoodChip('150g ức gà luộc')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] text-slate-300 shrink-0">+ 150g ức gà</button>
-                                <button type="button" onclick="appendFoodChip('1 đĩa rau luộc')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] text-slate-300 shrink-0">+ Rau luộc</button>
+                                <button type="button" onclick="window.appendFoodSample('1 quả trứng luộc')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] text-slate-300 shrink-0 cursor-pointer">+ 1 quả trứng</button>
+                                <button type="button" onclick="window.appendFoodSample('nửa bát cơm trắng')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] text-slate-300 shrink-0 cursor-pointer">+ Nửa bát cơm</button>
+                                <button type="button" onclick="window.appendFoodSample('150g ức gà luộc')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] text-slate-300 shrink-0 cursor-pointer">+ 150g ức gà</button>
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                            <button type="button" id="btn-ai-story" onclick="analyzeMealStoryWithAI()" class="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400 text-slate-950 font-extrabold py-2.5 px-3 rounded-xl text-xs transition-all">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <button type="button" id="btn-ai-story" onclick="window.analyzeMealText()" class="bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-extrabold py-2.5 px-3 rounded-xl text-xs transition-all cursor-pointer">
                                 ✨ Phân tích Calo & Đạm
                             </button>
-                            <button type="button" onclick="analyzeMealStoryOffline()" class="bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold py-2.5 px-3 rounded-xl text-xs border border-amber-500/30 transition-all">
-                                ⚡ Tính nhanh (Không cần API)
+                            <button type="button" onclick="window.analyzeMealStoryOffline()" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold py-2.5 px-3 rounded-xl text-xs border border-slate-700 transition-all cursor-pointer">
+                                ⚡ Tính nhanh
                             </button>
                         </div>
                     </div>
 
-                    <!-- Right Panel: Photo Upload & AI Vision -->
                     <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between space-y-3">
                         <div class="space-y-2.5">
-                            <label class="block text-sm font-bold text-sky-400">
-                                📷 Chụp ảnh / Tải ảnh món ăn
-                            </label>
-                            <input type="file" id="food-photo-file" accept="image/*" class="hidden" onchange="onFoodPhotoSelected(event)">
-                            <div onclick="document.getElementById('food-photo-file').click()" class="cursor-pointer bg-slate-900 hover:bg-slate-800/80 border-2 border-dashed border-slate-700 hover:border-sky-500/60 rounded-xl min-h-[126px] flex flex-col items-center justify-center p-3 text-center overflow-hidden transition-all">
+                            <label class="block text-sm font-bold text-teal-400">📷 Tải ảnh / Chụp ảnh món ăn</label>
+                            <input type="file" id="food-photo-file" accept="image/*" class="hidden" onchange="window.onPhotoPicked(event)">
+                            <div onclick="document.getElementById('food-photo-file').click()" class="cursor-pointer bg-slate-900 hover:bg-slate-800/80 border-2 border-dashed border-slate-700 hover:border-teal-500/60 rounded-xl min-h-[126px] flex flex-col items-center justify-center p-3 text-center overflow-hidden transition-all">
                                 <div id="photo-placeholder" class="space-y-1">
                                     <span class="text-2xl block">📸</span>
-                                    <p class="text-xs font-bold text-white">Bấm để chụp ảnh hoặc chọn ảnh từ máy</p>
-                                    <p class="text-[11px] text-slate-400">Hỗ trợ ảnh mâm cơm, tô phở, hộp cơm văn phòng</p>
+                                    <p class="text-xs font-bold text-white">Bấm để chọn ảnh hoặc chụp món ăn</p>
+                                    <p class="text-[11px] text-slate-400">AI sẽ ước lượng khẩu phần, Calo & Đạm</p>
                                 </div>
                                 <img id="photo-preview-img" src="" alt="Ảnh món ăn" class="hidden max-h-40 w-auto rounded-lg object-cover">
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                            <button type="button" id="btn-ai-photo" onclick="analyzeFoodPhotoWithAI()" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-2.5 px-3 rounded-xl text-xs transition-all">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <button type="button" id="btn-ai-photo" onclick="window.analyzeMealPhoto()" class="bg-teal-400 hover:bg-teal-300 text-slate-950 font-extrabold py-2.5 px-3 rounded-xl text-xs transition-all cursor-pointer">
                                 🔍 AI Quét ảnh món ăn
                             </button>
-                            <button type="button" onclick="document.getElementById('food-photo-file').click()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2.5 px-3 rounded-xl text-xs border border-slate-700 transition-all">
-                                📁 Đổi ảnh khác
+                            <button type="button" onclick="document.getElementById('food-photo-file').click()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2.5 px-3 rounded-xl text-xs border border-slate-700 transition-all cursor-pointer">
+                                📁 Đổi ảnh
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Editable Analysis Result Card -->
+                <!-- Editable Result Box -->
                 <div id="analysis-result-card" class="hidden bg-slate-950 border border-emerald-500/50 rounded-2xl p-4 sm:p-5 space-y-4">
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
                         <div>
-                            <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400 block">Kết quả phân tích (Có thể sửa trực tiếp số liệu từng món)</span>
-                            <h3 class="font-bold text-white text-sm mt-0.5">Kiểm tra & chỉnh khẩu phần trước khi lưu</h3>
+                            <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400 block">Kết quả phân tích (Có thể sửa trực tiếp số liệu)</span>
+                            <h3 class="font-bold text-white text-sm mt-0.5">Kiểm tra trước khi cộng vào hôm nay</h3>
                         </div>
                         <div class="text-right">
                             <span id="result-total-kcal" class="text-lg font-black text-orange-400 block">0 kcal</span>
-                            <span id="result-total-protein" class="text-xs font-bold text-sky-400">0g Đạm (Protein)</span>
+                            <span id="result-total-protein" class="text-xs font-bold text-teal-400">0g Đạm (Protein)</span>
                         </div>
                     </div>
-
                     <div id="result-items-container" class="space-y-2"></div>
-
                     <div id="result-advice-box" class="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-3 text-xs text-emerald-200"></div>
-
                     <div class="flex flex-col sm:flex-row gap-2.5">
-                        <button type="button" onclick="saveAnalyzedItemsToLog()" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 px-4 rounded-xl text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition-all">
+                        <button type="button" onclick="window.confirmMealItems()" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 px-4 rounded-xl text-xs sm:text-sm transition-all cursor-pointer">
                             ➕ Cộng vào Calo hôm nay
                         </button>
-                        <button type="button" onclick="document.getElementById('analysis-result-card').classList.add('hidden')" class="sm:w-auto bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-3 px-4 rounded-xl text-xs border border-slate-700">
+                        <button type="button" onclick="document.getElementById('analysis-result-card').classList.add('hidden')" class="sm:w-auto bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-3 px-4 rounded-xl text-xs border border-slate-700 cursor-pointer">
                             Đóng
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Today's Food Log List -->
+            <!-- Today's Meals Log -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                        <h3 class="font-extrabold text-base text-white">📋 Nhật ký bữa ăn hôm nay</h3>
-                        <p class="text-xs text-slate-400 mt-0.5">Theo dõi tổng lượng Calo và Đạm đã nạp trong ngày</p>
-                    </div>
-                    <button type="button" onclick="clearTodayFoodLog()" class="text-xs font-semibold text-rose-400 hover:text-rose-300 underline">
-                        Làm mới nhật ký hôm nay
+                    <h3 class="font-extrabold text-base text-white">📋 Nhật ký bữa ăn hôm nay</h3>
+                    <button type="button" onclick="window.clearTodayMeals()" class="text-xs font-semibold text-rose-400 hover:text-rose-300 underline cursor-pointer">
+                        Làm mới hôm nay
                     </button>
                 </div>
 
-                <!-- Quick Manual Add Row -->
                 <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                    <input type="text" id="manual-food-name" placeholder="Nhập nhanh tên món (vd: 1 bát phở bò)" class="sm:col-span-6 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
-                    <input type="number" id="manual-food-kcal" placeholder="Calo (kcal)" class="sm:col-span-2 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                    <input type="text" id="manual-food-name" placeholder="Tên món ăn (vd: 1 bát phở bò)" class="sm:col-span-6 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                    <input type="number" id="manual-food-kcal" placeholder="Calo" class="sm:col-span-2 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
                     <input type="number" id="manual-food-protein" placeholder="Đạm (g)" class="sm:col-span-2 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
-                    <button type="button" onclick="addManualFoodItem()" class="sm:col-span-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2.5 px-3 rounded-xl text-xs sm:text-sm transition-all">
+                    <button type="button" onclick="window.addManualMeal()" class="sm:col-span-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2.5 px-3 rounded-xl text-xs sm:text-sm transition-all cursor-pointer">
                         + Thêm món
                     </button>
                 </div>
 
-                <!-- Logged Items List -->
                 <div id="today-food-log-list" class="divide-y divide-slate-800"></div>
             </div>
         </section>
 
-        <!-- ==========================================================
-             TAB 3: TIẾN ĐỘ & HỒ SƠ (#view-progress)
-             ========================================================== -->
+        <!-- TAB 3: PROGRESS, PROFILE & GMAIL CLOUD SYNC -->
         <section id="view-progress" class="hidden space-y-6">
-
-            <!-- Card 1: Đồng bộ đám mây & Đăng nhập Gmail (Full-Width Clean Card) -->
-            <div class="bg-slate-900 border border-sky-500/35 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h2 class="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
-                            ☁️ Đồng bộ đám mây & Đăng nhập Gmail
-                        </h2>
-                        <p class="text-xs text-slate-400 mt-0.5">Đăng nhập cùng 1 Gmail trên điện thoại và laptop để tự động lưu dữ liệu riêng tư, không lo mất máy</p>
-                    </div>
+            <div class="bg-slate-900 border border-emerald-500/35 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+                <div>
+                    <h2 class="font-extrabold text-base sm:text-lg text-white">☁️ Đồng bộ đám mây & Đăng nhập Gmail</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Đăng nhập cùng 1 Gmail để đồng bộ dữ liệu và API Key riêng tư trên mọi thiết bị</p>
                 </div>
 
-                <!-- Status Banner & Buttons -->
                 <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div class="flex items-center gap-3">
                         <img id="progress-user-avatar" src="" alt="Avatar" class="hidden w-10 h-10 rounded-full border border-emerald-500/50 object-cover shrink-0">
                         <div>
                             <p id="cloud-user-name" class="hidden text-sm font-bold text-white"></p>
-                            <p id="cloud-status-text" class="text-xs sm:text-sm text-slate-300 font-medium">
-                                Chưa đăng nhập Gmail — Dữ liệu hiện lưu trên thiết bị này
-                            </p>
+                            <p id="cloud-status-text" class="text-xs sm:text-sm text-slate-300 font-medium">Chưa đăng nhập Gmail — Dữ liệu đang lưu trên thiết bị này</p>
                         </div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 shrink-0">
-                        <button type="button" id="btn-google-signin" onclick="signInWithGmail()" class="bg-white hover:bg-slate-100 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-sm transition-all">
+                        <button type="button" id="btn-google-signin" onclick="window.signInWithGmail()" class="bg-white hover:bg-slate-100 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all cursor-pointer">
                             <svg class="w-4 h-4" viewBox="0 0 24 24">
                                 <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.8C6.2 7.2 8.9 5 12 5z"/>
                                 <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.6l3.7 2.9c2.2-2 3.7-5 3.7-8.7z"/>
@@ -531,77 +1566,75 @@
                             </svg>
                             Đăng nhập bằng Gmail
                         </button>
-                        <button type="button" id="btn-cloud-sync-now" onclick="syncNowToCloud()" class="hidden bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-xl transition-all">
+                        <button type="button" id="btn-cloud-sync-now" onclick="window.pushCloudData(false)" class="hidden bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-xl transition-all cursor-pointer">
                             🔄 Đồng bộ ngay
                         </button>
-                        <button type="button" id="btn-google-signout" onclick="signOutFromGmail()" class="hidden bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 transition-all">
+                        <button type="button" id="btn-google-signout" onclick="window.logoutGmail()" class="hidden bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 transition-all cursor-pointer">
                             Đăng xuất
                         </button>
                     </div>
                 </div>
 
-                <!-- Visible Auth Status & Error Diagnostic Box -->
-                <div id="auth-error-msg" class="hidden bg-rose-950/70 border border-rose-500/40 rounded-xl p-3 text-xs text-rose-200 leading-relaxed"></div>
+                <div id="auth-status-banner" class="hidden rounded-xl p-3 text-xs leading-relaxed"></div>
 
-                <!-- Collapsible Firebase Config Panel -->
-                        <button type="button" onclick="exportBackupJson()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all">
-                            ⬇️ Xuất file sao lưu
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                    <span class="text-xs text-slate-400">Sao lưu / khôi phục thủ công (JSON):</span>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="window.exportBackupJson()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 cursor-pointer">
+                            ⬇️ Xuất JSON
                         </button>
-                        <label class="cursor-pointer px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all">
-                            ⬆️ Nhập file khôi phục
-                            <input type="file" accept=".json" class="hidden" onchange="importBackupJson(event)">
+                        <label class="cursor-pointer px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700">
+                            ⬆️ Nhập JSON
+                            <input type="file" accept=".json" class="hidden" onchange="window.importBackupJson(event)">
                         </label>
                     </div>
                 </div>
             </div>
 
-            <!-- Card 2: Cài đặt Gemini API Key -->
+            <!-- Gemini API Key -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-3 shadow-xl">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                        <h3 class="font-extrabold text-base text-white">🔑 Cài đặt Gemini API Key</h3>
-                        <p class="text-xs text-slate-400 mt-0.5">Tự động đồng bộ lên Firebase nếu bạn đã đăng nhập Gmail. Lấy key miễn phí tại <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer" class="text-emerald-400 underline font-semibold">Google AI Studio</a>.</p>
+                        <h3 class="font-extrabold text-base text-white">🔑 Gemini API Key</h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Lưu theo từng tài khoản Gmail trên đám mây để dùng tính năng AI phân tích món ăn & ảnh</p>
                     </div>
                     <span id="profile-apikey-status" class="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-950 border border-slate-700 text-slate-400">Chưa có Key</span>
                 </div>
                 <div class="flex flex-col sm:flex-row gap-2">
                     <input type="password" id="profile-apikey-input" placeholder="Dán Gemini API Key (AIzaSy...)" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
-                    <button type="button" onclick="saveApiKeyFromProfile()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs sm:text-sm transition-all">
+                    <button type="button" onclick="window.saveApiKey()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs sm:text-sm transition-all cursor-pointer">
                         Lưu API Key
                     </button>
                 </div>
             </div>
 
-            <!-- Card 3: Hồ sơ & Theo dõi cân nặng -->
+            <!-- Weight Progress & Profile -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-5 shadow-xl">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h3 class="font-extrabold text-base sm:text-lg text-white">⚖️ Hồ sơ & Theo dõi cân nặng</h3>
-                        <p class="text-xs text-slate-400 mt-0.5">Cập nhật cân nặng buổi sáng để theo dõi tiến độ giảm 5kg</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Cập nhật cân nặng để theo dõi hành trình 71.0kg → 66.0kg</p>
                     </div>
                     <div class="flex items-center gap-2">
                         <input type="number" step="0.1" id="checkin-weight-input" placeholder="Cân mới (kg)" class="w-32 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
-                        <button type="button" onclick="logWeightCheckin()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-4 py-2 rounded-xl text-xs sm:text-sm transition-all">
+                        <button type="button" onclick="window.logWeight()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-4 py-2 rounded-xl text-xs sm:text-sm transition-all cursor-pointer">
                             + Ghi cân nặng
                         </button>
                     </div>
                 </div>
 
-                <!-- Visual Progress Bar -->
                 <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2.5">
                     <div class="flex justify-between text-xs font-bold">
-                        <span class="text-slate-400">Xuất phát: <strong class="text-white" id="prog-start-w">71.0 kg</strong></span>
+                        <span class="text-slate-400">Bắt đầu: <strong class="text-white" id="prog-start-w">71.0 kg</strong></span>
                         <span class="text-emerald-400" id="prog-pct-label">0% chặng đường</span>
                         <span class="text-slate-400">Mục tiêu: <strong class="text-emerald-400" id="prog-goal-w">66.0 kg</strong></span>
                     </div>
                     <div class="w-full h-3.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
-                        <div id="prog-bar-fill" class="h-full bg-gradient-to-r from-emerald-500 to-green-400 rounded-full transition-all duration-500" style="width: 5%"></div>
+                        <div id="prog-bar-fill" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500" style="width: 5%"></div>
                     </div>
-                    <!-- SVG Chart -->
                     <div id="weight-svg-box" class="w-full h-44 pt-2"></div>
                 </div>
 
-                <!-- Editable Profile Fields -->
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     <div>
                         <label class="block text-xs text-slate-400 mb-1">Cân nặng hiện tại (kg)</label>
@@ -631,16 +1664,15 @@
 
                 <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800">
                     <div id="weight-history-chips" class="flex flex-wrap gap-1.5 text-xs"></div>
-                    <button type="button" onclick="saveProfileForm()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2.5 px-6 rounded-xl text-xs sm:text-sm transition-all">
+                    <button type="button" onclick="window.saveProfileSettings()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2.5 px-6 rounded-xl text-xs sm:text-sm transition-all cursor-pointer">
                         Lưu hồ sơ cá nhân
                     </button>
                 </div>
             </div>
-
         </section>
     </main>
 
-    <!-- Mobile Fixed Bottom Navigation Bar -->
+    <!-- Mobile Bottom Navigation -->
     <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800 px-3 py-2">
         <div class="grid grid-cols-3 gap-1.5 max-w-md mx-auto">
             <button type="button" data-tab="workout" id="tab-mob-workout" onclick="window.switchTab('workout')" class="nav-tab-btn cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 bg-emerald-500/15 font-bold">
@@ -659,545 +1691,34 @@
     </nav>
 
     <script>
-        // ==========================================================
-        // 1. CONSTANTS & DEFAULT STATE
-        // ==========================================================
-        const DEFAULT_FIREBASE_CONFIG = {
-            apiKey: "AIzaSyCVRJoUY4KiyO5C_Kc7gRcAIHY51ppsQ8s",
-            authDomain: "fithome-7b19a.firebaseapp.com",
-            projectId: "fithome-7b19a",
-            storageBucket: "fithome-7b19a.firebasestorage.app",
-            messagingSenderId: "698950998679",
-            appId: "1:698950998679:web:e8cb3a1f0a399a6399e7d2",
-            measurementId: "G-LKCMMZW8NM"
-        };
-        const STORAGE_KEY = 'fithome_ai_state_v4';
-        const API_KEY_STORAGE = 'fithome_gemini_api_key';
-        const FIREBASE_CFG_STORAGE = 'fithome_firebase_cfg';
-        // ==========================================================
-        // 8. FIREBASE CLOUD SYNC & GOOGLE GMAIL AUTH
-        // ==========================================================
-        function initializeFirebase() {
-            const cfg = getFirebaseConfig();
-            if (!cfg || typeof firebase === 'undefined') {
-                updateCloudAuthUI(null);
-                return;
-            }
-            try {
-                if (!firebase.apps.length) firebase.initializeApp(cfg);
-                fbAuth = firebase.auth();
-                fbDb = firebase.firestore();
-
-                // Set local persistence so users stay logged in across reloads
-                fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
-
-                // Process redirect login result (for iPhone Safari / popup-blocked browsers)
-                fbAuth.getRedirectResult()
-                    .then((result) => {
-                        if (result && result.user) {
-                            clearAuthErrorMsg();
-                            showToast('Đăng nhập Gmail thành công!');
-                        }
-                    })
-                    .catch((err) => {
-                        handleFirebaseAuthError(err);
-                    });
-
-                fbAuth.onAuthStateChanged(async (user) => {
-                    currentUser = user;
-                    updateCloudAuthUI(user);
-                    if (user) {
-                        clearAuthErrorMsg();
-                        await pullFromFirebaseCloud(user);
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.nav-tab-btn').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const t = this.getAttribute('data-tab');
+                    if (t && typeof window.switchTab === 'function') {
+                        window.switchTab(t);
                     }
                 });
-            } catch (err) {
-                console.warn('Firebase init warning:', err);
-                showAuthErrorMsg('Lỗi khởi tạo Firebase: ' + err.message);
-            }
-        }
-
-        function showAuthErrorMsg(htmlMsg) {
-            const box = document.getElementById('auth-error-msg');
-            if (!box) return;
-            box.innerHTML = htmlMsg;
-            box.classList.remove('hidden');
-        }
-
-        function clearAuthErrorMsg() {
-            const box = document.getElementById('auth-error-msg');
-            if (!box) return;
-            box.innerHTML = '';
-            box.classList.add('hidden');
-        }
-
-        function handleFirebaseAuthError(err) {
-            if (!err) return;
-            console.warn('Firebase Auth Error:', err.code, err.message);
-            if (err.code === 'auth/unauthorized-domain') {
-                const msg = `⚠️ <strong>Tên miền chưa được cấp quyền trên Firebase:</strong> Hãy vào <strong>Firebase Console → Authentication → Settings → Authorized domains</strong> và thêm dòng <code class="bg-slate-900 px-1.5 py-0.5 rounded text-emerald-300">nguyenmanhdat3090-create.github.io</code>.`;
-                showAuthErrorMsg(msg);
-                showToast('Chưa thêm tên miền vào Authorized domains trên Firebase!', 'warning');
-            } else if (err.code === 'auth/operation-not-allowed') {
-                const msg = `⚠️ <strong>Chưa bật đăng nhập Google:</strong> Hãy vào <strong>Firebase Console → Authentication → Sign-in method</strong>, bật <strong>Google</strong> và bấm Save.`;
-                showAuthErrorMsg(msg);
-                showToast('Chưa bật nhà cung cấp Google trong Firebase!', 'warning');
-            } else if (err.code === 'auth/cancelled-popup-request') {
-                // Ignore duplicate click noise
-            } else {
-                showAuthErrorMsg(`⚠️ <strong>Lỗi đăng nhập (${err.code || 'unknown'}):</strong> ${err.message}`);
-                showToast('Lỗi đăng nhập: ' + err.message, 'warning');
-            }
-        }
-
-        function updateCloudAuthUI(user) {
-            const headerDot = document.getElementById('header-gmail-dot');
-            const headerLabel = document.getElementById('header-gmail-label');
-            const statusText = document.getElementById('cloud-status-text');
-            const avatar = document.getElementById('progress-user-avatar');
-            const btnIn = document.getElementById('btn-google-signin');
-            const btnSync = document.getElementById('btn-cloud-sync-now');
-            const btnOut = document.getElementById('btn-google-signout');
-
-            if (user) {
-                headerDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
-                headerLabel.innerText = user.displayName || user.email || 'Đã đồng bộ';
-                statusText.innerHTML = `<span class="text-emerald-400 font-bold">Đã đăng nhập: ${user.email} • ☁️ Đã đồng bộ</span>`;
-                if (user.photoURL) {
-                    avatar.src = user.photoURL;
-                    avatar.classList.remove('hidden');
-                }
-                btnIn.classList.add('hidden');
-                btnIn.disabled = false;
-                btnSync.classList.remove('hidden');
-                btnOut.classList.remove('hidden');
-            } else {
-                headerDot.className = 'w-2 h-2 rounded-full bg-slate-500';
-                headerLabel.innerText = 'Đăng nhập Gmail';
-                statusText.innerText = 'Chưa đăng nhập Gmail — Dữ liệu lưu trên máy này';
-                avatar.classList.add('hidden');
-                btnIn.classList.remove('hidden');
-                btnIn.disabled = false;
-                btnSync.classList.add('hidden');
-                btnOut.classList.add('hidden');
-            }
-        }
-
-        function handleHeaderAuthAction() {
-            if (currentUser) window.switchTab('progress');
-            else signInWithGmail();
-        }
-
-        function isMobileSafariOrStandalone() {
-            const ua = navigator.userAgent || '';
-            const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-            const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-            return isIOS || isStandalone;
-        }
-
-        async function signInWithGmail() {
-            clearAuthErrorMsg();
-            const cfg = getFirebaseConfig();
-            if (!cfg) {
-                window.switchTab('progress');
-                document.getElementById('firebase-config-box').classList.remove('hidden');
-                showToast('Hãy dán cấu hình Firebase 1 lần duy nhất để bật đăng nhập Gmail nhé!', 'warning');
-                return;
-            }
-            if (!fbAuth) initializeFirebase();
-
-            const btnIn = document.getElementById('btn-google-signin');
-            if (btnIn) btnIn.disabled = true;
-
-            const provider = new firebase.auth.GoogleAuthProvider();
-            provider.setCustomParameters({ prompt: 'select_account' });
-
-            // On iOS Safari / Home Screen PWA, signInWithRedirect is far more reliable than popup
-            if (isMobileSafariOrStandalone()) {
-                try {
-                    showToast('Đang chuyển sang trang chọn tài khoản Google...');
-                    await fbAuth.signInWithRedirect(provider);
-                } catch (err) {
-                    if (btnIn) btnIn.disabled = false;
-                    handleFirebaseAuthError(err);
-                }
-                return;
-            }
-
-            try {
-                await fbAuth.signInWithPopup(provider);
-                showToast('Đăng nhập Gmail thành công!');
-            } catch (err) {
-                if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
-                    // Fallback seamlessly to full-page redirect if Cốc Cốc / browser blocks popups
-                    showToast('Trình duyệt chặn cửa sổ bật lên — đang chuyển sang đăng nhập toàn trang...', 'warning');
-                    try {
-                        await fbAuth.signInWithRedirect(provider);
-                    } catch (redirErr) {
-                        if (btnIn) btnIn.disabled = false;
-                        handleFirebaseAuthError(redirErr);
-                    }
-                } else {
-                    if (btnIn) btnIn.disabled = false;
-                    handleFirebaseAuthError(err);
-                }
-            }
-        }
-
-        async function signOutFromGmail() {
-            if (!fbAuth) return;
-            try {
-                clearTimeout(cloudSaveTimeout);
-                await fbAuth.signOut();
-                currentUser = null;
-                updateCloudAuthUI(null);
-                clearAuthErrorMsg();
-                showToast('Đã đăng xuất khỏi Gmail. Bạn có thể bấm Đăng nhập bằng Gmail bất kỳ lúc nào.');
-            } catch (err) {
-                showToast('Lỗi khi đăng xuất: ' + err.message, 'warning');
-            }
-        }
-
-        function updateCloudAuthUI(user) {
-            const headerDot = document.getElementById('header-gmail-dot');
-            const headerLabel = document.getElementById('header-gmail-label');
-            const userNameEl = document.getElementById('cloud-user-name');
-            const statusText = document.getElementById('cloud-status-text');
-            const avatar = document.getElementById('progress-user-avatar');
-            const btnIn = document.getElementById('btn-google-signin');
-            const btnSync = document.getElementById('btn-cloud-sync-now');
-            const btnOut = document.getElementById('btn-google-signout');
-
-            if (user) {
-                headerDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
-                headerLabel.innerText = user.displayName || user.email || 'Đã đồng bộ';
-                if (userNameEl) {
-                    userNameEl.innerText = `${user.displayName || 'Người dùng'} (${user.email})`;
-                    userNameEl.classList.remove('hidden');
-                }
-                statusText.innerHTML = `<span class="text-emerald-400 font-bold">☁️ Đã đồng bộ đám mây</span>`;
-                if (user.photoURL) {
-                    avatar.src = user.photoURL;
-                    avatar.classList.remove('hidden');
-                }
-                btnIn.classList.add('hidden');
-                btnSync.classList.remove('hidden');
-                btnOut.classList.remove('hidden');
-            } else {
-                headerDot.className = 'w-2 h-2 rounded-full bg-slate-500';
-                headerLabel.innerText = 'Đăng nhập Gmail';
-                if (userNameEl) userNameEl.classList.add('hidden');
-                statusText.innerText = 'Chưa đăng nhập Gmail — Dữ liệu hiện lưu trên thiết bị này';
-                avatar.classList.add('hidden');
-                btnIn.classList.remove('hidden');
-                btnSync.classList.add('hidden');
-                btnOut.classList.add('hidden');
-            }
-        }
-
-        function handleHeaderAuthAction() {
-            if (currentUser) window.switchTab('progress');
-            else signInWithGmail();
-        }
-
-        async function signInWithGmail() {
-            if (!fbAuth) initializeFirebase();
-            try {
-                const provider = new firebase.auth.GoogleAuthProvider();
-                provider.setCustomParameters({ prompt: 'select_account' });
-                await fbAuth.signInWithPopup(provider);
-                showToast('Đăng nhập Gmail thành công!');
-            } catch (err) {
-                if (err.code === 'auth/unauthorized-domain') {
-                    showToast('Tên miền chưa được cấp quyền trong Firebase Authentication!', 'warning');
-                } else if (err.code !== 'auth/popup-closed-by-user') {
-                    showToast('Lỗi đăng nhập: ' + err.message, 'warning');
-                }
-            }
-        }
-
-        async function signOutFromGmail() {
-            if (!fbAuth) return;
-            await fbAuth.signOut();
-            showToast('Đã đăng xuất khỏi Gmail.');
-        }
-
-        async function pullFromFirebaseCloud(user) {
-            if (!fbDb || !user) return;
-            try {
-                const docRef = fbDb.collection('users').doc(user.uid);
-                const snap = await docRef.get();
-                if (snap.exists) {
-                    const data = snap.data();
-                    if (data && data.stateJson) {
-                        const cloudState = JSON.parse(data.stateJson);
-                        const todayStr = new Date().toISOString().split('T')[0];
-                        appState = {
-                            ...JSON.parse(JSON.stringify(defaultState)),
-                            ...cloudState,
-                            profile: { ...defaultState.profile, ...(cloudState.profile || {}) },
-                            workout: { ...defaultState.workout, ...(cloudState.workout || {}) },
-                            today: (cloudState.today && cloudState.today.dateStr === todayStr)
-                                ? { ...defaultState.today, ...cloudState.today }
-                                : { ...defaultState.today, dateStr: todayStr }
-                        };
-                        if (data.geminiApiKey) {
-                            localStorage.setItem(API_KEY_STORAGE, data.geminiApiKey);
-                        }
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
-                        renderAllUI();
-                        showToast('☁️ Đã đồng bộ dữ liệu từ Gmail của bạn!');
-                    }
-                } else {
-                    await pushToFirebaseCloud(true);
-                }
-            } catch (err) {
-                showToast('Không thể tải dữ liệu mây: ' + err.message, 'warning');
-            }
-        }
-
-        async function pushToFirebaseCloud(silent = false) {
-            if (!fbDb || !currentUser) return;
-            try {
-                const docRef = fbDb.collection('users').doc(currentUser.uid);
-                await docRef.set({
-                    email: currentUser.email || '',
-                    displayName: currentUser.displayName || '',
-                    stateJson: JSON.stringify(appState),
-                    geminiApiKey: localStorage.getItem(API_KEY_STORAGE) || '',
-                    updatedAt: new Date().toISOString()
-                }, { merge: true });
-                if (!silent) showToast('☁️ Đã lưu toàn bộ dữ liệu lên Gmail!');
-            } catch (err) {
-                if (!silent) showToast('Lỗi đồng bộ đám mây: ' + err.message, 'warning');
-            }
-        }
-
-        function syncNowToCloud() {
-            pushToFirebaseCloud(false);
-        }
-
-        function exportBackupJson() {
-            const payload = {
-                appState,
-                geminiApiKey: localStorage.getItem(API_KEY_STORAGE) || ''
-            };
-            const href = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(payload, null, 2));
-            const a = document.createElement('a');
-            a.href = href;
-            a.download = `FitHomeAI_Backup_${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            showToast('Đã tải xuống file sao lưu JSON!');
-        }
-
-        function importBackupJson(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const parsed = JSON.parse(e.target.result);
-                    const loaded = parsed.appState || parsed;
-                    if (loaded && loaded.profile) {
-                        appState = { ...JSON.parse(JSON.stringify(defaultState)), ...loaded };
-                        if (parsed.geminiApiKey) localStorage.setItem(API_KEY_STORAGE, parsed.geminiApiKey);
-                        saveAppState();
-                        renderAllUI();
-                        showToast('Khôi phục dữ liệu từ file thành công!');
-                    }
-                } catch (err) {
-                    showToast('File sao lưu không hợp lệ!', 'warning');
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        // ==========================================================
-        // 9. API KEY & WEIGHT PROGRESS MANAGEMENT
-        // ==========================================================
-        function refreshApiKeyBadges() {
-            const key = localStorage.getItem(API_KEY_STORAGE) || '';
-            const navBadge = document.getElementById('nutrition-apikey-badge');
-            const profStatus = document.getElementById('profile-apikey-status');
-            const profInput = document.getElementById('profile-apikey-input');
-
-            if (key) {
-                navBadge.innerText = 'Đã cài API Key ✓';
-                profStatus.innerText = 'Đã lưu Key ✓';
-                profStatus.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400';
-                profInput.value = key;
-            } else {
-                navBadge.innerText = 'Cài API Key';
-                profStatus.innerText = 'Chưa có Key';
-                profStatus.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-slate-950 border border-slate-700 text-slate-400';
-            }
-        }
-
-        function saveApiKeyFromProfile() {
-            const val = document.getElementById('profile-apikey-input').value.trim();
-            if (!val) {
-                showToast('Vui lòng nhập Gemini API Key!', 'warning');
-                return;
-            }
-            localStorage.setItem(API_KEY_STORAGE, val);
-            refreshApiKeyBadges();
-            if (currentUser && fbDb) pushToFirebaseCloud(true);
-            showToast('Đã lưu Gemini API Key thành công!');
-        }
-
-        function logWeightCheckin() {
-            const val = parseFloat(document.getElementById('checkin-weight-input').value);
-            if (isNaN(val) || val < 35 || val > 220) {
-                showToast('Vui lòng nhập cân nặng hợp lệ (kg)!', 'warning');
-                return;
-            }
-            appState.profile.currentWeight = val;
-            document.getElementById('edit-prof-weight').value = val;
-            const dateLabel = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-            appState.weightHistory.push({ date: dateLabel, weight: val });
-            if (appState.weightHistory.length > 12) appState.weightHistory.shift();
-
-            document.getElementById('checkin-weight-input').value = '';
-            saveAppState();
-            refreshDashboardSummary();
-            updateEstimatedBurnDisplay();
-            window.renderWeightChart();
-            showToast(`Đã ghi nhận cân nặng mới: ${val.toFixed(1)} kg!`);
-        }
-
-        function saveProfileForm() {
-            const curW = parseFloat(document.getElementById('edit-prof-weight').value) || 71.0;
-            const goalW = parseFloat(document.getElementById('edit-prof-goal').value) || 66.0;
-            const height = parseInt(document.getElementById('edit-prof-height').value) || 172;
-            const age = parseInt(document.getElementById('edit-prof-age').value) || 24;
-            const cal = parseInt(document.getElementById('edit-prof-cal').value) || 1850;
-            const pro = parseInt(document.getElementById('edit-prof-protein').value) || 142;
-
-            appState.profile.currentWeight = curW;
-            appState.profile.targetWeight = goalW;
-            appState.profile.height = height;
-            appState.profile.age = age;
-            appState.profile.dailyCalorieTarget = cal;
-            appState.profile.dailyProteinTarget = pro;
-
-            if (appState.weightHistory.length > 0) {
-                appState.weightHistory[appState.weightHistory.length - 1].weight = curW;
-            }
-
-            saveAppState();
-            refreshDashboardSummary();
-            updateEstimatedBurnDisplay();
-            window.renderWeightChart();
-            showToast('Đã lưu thông tin hồ sơ!');
-        }
-
-        window.renderWeightChart = function() {
-            const p = appState.profile;
-            const startW = p.startWeight || 71.0;
-            const curW = p.currentWeight || 71.0;
-            const goalW = p.targetWeight || 66.0;
-
-            document.getElementById('prog-start-w').innerText = `${startW.toFixed(1)} kg`;
-            document.getElementById('prog-goal-w').innerText = `${goalW.toFixed(1)} kg`;
-
-            const totalNeeded = Math.max(0.1, startW - goalW);
-            const lostSoFar = Math.max(0, startW - curW);
-            const pct = Math.min(100, Math.round((lostSoFar / totalNeeded) * 100));
-            document.getElementById('prog-pct-label').innerText = `${pct}% chặng đường (-${lostSoFar.toFixed(1)}kg)`;
-            document.getElementById('prog-bar-fill').style.width = `${Math.max(4, pct)}%`;
-
-            const container = document.getElementById('weight-svg-box');
-            const hist = appState.weightHistory || [{ date: 'Bắt đầu', weight: curW }];
-            const width = container.clientWidth || 600;
-            const height = 165;
-            const padL = 38, padR = 24, padT = 22, padB = 26;
-
-            const allWeights = [...hist.map(h => h.weight), goalW];
-            const minW = Math.floor(Math.min(...allWeights) - 1);
-            const maxW = Math.ceil(Math.max(...allWeights) + 1);
-            const span = Math.max(1, maxW - minW);
-
-            const getY = (w) => padT + ((maxW - w) / span) * (height - padT - padB);
-            const getX = (i) => hist.length === 1 ? width / 2 : padL + (i / (hist.length - 1)) * (width - padL - padR);
-
-            const pts = hist.map((h, i) => ({ x: getX(i), y: getY(h.weight), ...h }));
-            const goalY = getY(goalW);
-
-            let svg = `<svg viewBox="0 0 ${width} ${height}" class="w-full h-full overflow-visible">`;
-            svg += `<line x1="${padL}" y1="${goalY}" x2="${width - padR}" y2="${goalY}" stroke="#10b981" stroke-width="1.5" stroke-dasharray="5 5"/>`;
-            svg += `<text x="${width - padR}" y="${goalY - 6}" text-anchor="end" fill="#10b981" font-size="10" font-weight="bold">Mục tiêu ${goalW.toFixed(1)}kg</text>`;
-
-            if (pts.length > 1) {
-                svg += `<polyline fill="none" stroke="#f97316" stroke-width="3" stroke-linecap="round" points="${pts.map(pt => `${pt.x},${pt.y}`).join(' ')}"/>`;
-            }
-            pts.forEach(pt => {
-                svg += `<circle cx="${pt.x}" cy="${pt.y}" r="5" fill="#020617" stroke="#f97316" stroke-width="2.5"/>`;
-                svg += `<text x="${pt.x}" y="${pt.y - 9}" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="bold">${pt.weight.toFixed(1)}kg</text>`;
-                svg += `<text x="${pt.x}" y="${height - 5}" text-anchor="middle" fill="#94a3b8" font-size="10">${pt.date}</text>`;
             });
-            svg += `</svg>`;
-            container.innerHTML = svg;
 
-            const chipsEl = document.getElementById('weight-history-chips');
-            chipsEl.innerHTML = hist.slice(-5).map(h => `
-                <span class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300">
-                    ${h.date}: <strong class="text-white">${h.weight.toFixed(1)}kg</strong>
-                </span>
-            `).join('');
-        };
-
-        // ==========================================================
-        // 10. INITIALIZATION
-        // ==========================================================
-        function renderAllUI() {
-            const p = appState.profile;
-            document.getElementById('edit-prof-weight').value = p.currentWeight;
-            document.getElementById('edit-prof-goal').value = p.targetWeight;
-            document.getElementById('edit-prof-height').value = p.height;
-            document.getElementById('edit-prof-age').value = p.age;
-            document.getElementById('edit-prof-cal').value = p.dailyCalorieTarget;
-            document.getElementById('edit-prof-protein').value = p.dailyProteinTarget;
-
-            document.getElementById('duration-slider').value = appState.workout.duration;
-            document.getElementById('duration-val').innerText = appState.workout.duration;
-
-            renderEquipmentState();
-            setWorkoutIntensity(appState.workout.intensity);
-            renderWorkoutPlan();
-            renderFoodLogList();
-            refreshApiKeyBadges();
-            refreshDashboardSummary();
-            window.renderWeightChart();
-        }
-
-        window.onload = function() {
-            syncStepsFromUrlParams();
-            renderAllUI();
-            initializeFirebase();
-
-            const headerAuthBtn = document.getElementById('header-gmail-btn');
-            if (headerAuthBtn) {
-                headerAuthBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    handleHeaderAuthAction();
-                });
+            if (typeof window.syncActivityFromUrl === 'function') {
+                window.syncActivityFromUrl();
             }
-            const mainSignInBtn = document.getElementById('btn-google-signin');
-            if (mainSignInBtn) {
-                mainSignInBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    signInWithGmail();
-                });
+            if (typeof window.refreshUI === 'function') {
+                window.refreshUI();
+            }
+            if (typeof window.initFirebaseSafe === 'function') {
+                window.initFirebaseSafe();
             }
 
-            window.addEventListener('resize', () => {
-                if (!document.getElementById('view-progress').classList.contains('hidden')) {
+            window.addEventListener('resize', function() {
+                const progView = document.getElementById('view-progress');
+                if (progView && !progView.classList.contains('hidden') && typeof window.renderWeightChart === 'function') {
                     window.renderWeightChart();
                 }
             });
-        };
+        });
     </script>
 </body>
 </html>
